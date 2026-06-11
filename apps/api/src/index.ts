@@ -9,8 +9,11 @@ import { requireAuth } from './middleware/require-auth';
 import { prisma } from './lib/prisma';
 import { aiRoutes } from './routes/ai';
 import { alertRoutes } from './routes/alerts';
+import { auditRoutes } from './routes/audit';
+import { caseRoutes } from './routes/cases';
 import { mapRoutes } from './routes/map';
 import { statsRoutes } from './routes/stats';
+import { vesselRoutes } from './routes/vessels';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -48,6 +51,9 @@ app.get('/api/v1/me', requireAuth, async (c) => {
 app.route('/', statsRoutes);
 app.route('/', mapRoutes);
 app.route('/', alertRoutes);
+app.route('/', caseRoutes);
+app.route('/', vesselRoutes);
+app.route('/', auditRoutes);
 app.route('/', aiRoutes);
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
