@@ -1,9 +1,12 @@
-import { ChevronDown, Radio, Search, Sparkles } from "lucide-react"
+import { Radio } from "lucide-react"
 import type { ReactNode } from "react"
 import { LogoutButton } from "@/app/dashboard/logout-button"
 import type { SessionUser } from "@/server/session"
-import { Button } from "@/components/ui/button"
+import { AssistantOpenButton } from "@/components/assistant/assistant-open-button"
 import { DashboardNav } from "./dashboard-nav"
+import { LiveIndicator } from "./live-indicator"
+import { NlSearch } from "./nl-search"
+import { ScopeToggle } from "./scope-toggle"
 
 export function DashboardShell({
   user,
@@ -32,26 +35,14 @@ export function DashboardShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-fog bg-abyss/90 flex h-14 shrink-0 items-center gap-3 border-b px-4 backdrop-blur md:px-6">
-          <button className="border-fog bg-trench text-mist-t hover:text-foam hidden h-8 min-w-72 items-center gap-2 rounded-sm border px-3 text-sm transition-colors md:flex">
-            <Search className="size-4" />
-            <span className="text-fathom">Cari alert, MMSI, zona...</span>
-            <span className="font-data ml-auto text-[0.6875rem] text-fathom">CMD K</span>
-          </button>
+          <NlSearch />
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="border-fog bg-trench hidden h-8 items-center gap-2 rounded-sm border px-2.5 md:flex">
-              <span className="bg-signal live-pulse size-2 rounded-full" />
-              <span className="font-data text-[0.6875rem] text-mist-t">LIVE</span>
-            </div>
+            <LiveIndicator />
 
-            <Button variant="outline" size="sm" className="hidden gap-1.5 md:inline-flex">
-              Agency Saya
-              <ChevronDown className="size-3.5" />
-            </Button>
+            <ScopeToggle />
 
-            <Button variant="ghost" size="icon-sm" aria-label="Buka asisten SIREN">
-              <Sparkles className="text-signal-bright size-4" />
-            </Button>
+            <AssistantOpenButton />
 
             <div className="border-fog ml-1 hidden h-8 items-center gap-2 border-l pl-3 sm:flex">
               <div className="bg-deck grid size-7 place-items-center rounded-sm">

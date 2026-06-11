@@ -1,6 +1,12 @@
 // Endpoint AI (plan 06): explanation, chat RAG streaming, NL search parse.
 import { Hono } from 'hono';
-import { generateObject, streamText, convertToModelMessages } from 'ai';
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateObject,
+  streamText,
+} from 'ai';
 import { z } from 'zod';
 import { EMPTY_FILTER, searchFilterSchema, type SearchFilter } from '@siren/shared';
 import { MODEL_CHAT, MODEL_SEARCH, aiProvider, countLlmCall } from '../lib/ai';
@@ -51,15 +57,26 @@ aiRoutes.post('/api/v1/chat', requireAuth, chatRateLimit, async (c) => {
     .join('\n\n');
 
   countLlmCall(MODEL_CHAT);
-  const result = streamText({
-    model: aiProvider(MODEL_CHAT),
-    system: `${CHAT_SYSTEM_PROMPT}\n\nKONTEKS PASAL:\n${context || '(kosong)'}`,
-    messages: await convertToModelMessages(messages),
+  const modelMessages = await convertToModelMessages(messages);
+
+  // Citations dikirim sebagai data part supaya UI bisa merender citation cards
+  const stream = createUIMessageStream({
+    execute({ writer }) {
+      writer.write({
+        type: 'data-citations',
+        id: 'citations',
+        data: citations.map((ct) => ({ ...ct, body: ct.body.slice(0, 600) })),
+      });
+      const result = streamText({
+        model: aiProvider(MODEL_CHAT),
+        system: `${CHAT_SYSTEM_PROMPT}\n\nKONTEKS PASAL:\n${context || '(kosong)'}`,
+        messages: modelMessages,
+      });
+      writer.merge(result.toUIMessageStream());
+    },
   });
 
-  return result.toUIMessageStreamResponse({
-    headers: { 'x-citations': encodeURIComponent(JSON.stringify(citations.map(({ body, ...rest }) => ({ ...rest, body: body.slice(0, 600) })))) },
-  });
+  return createUIMessageStreamResponse({ stream });
 });
 
 // ── Feature 9: NL Search Router (plan 06 P3.1.2) ──

@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Map, {
   Layer,
+  Marker,
   NavigationControl,
   Popup,
   Source,
   type MapRef,
 } from "react-map-gl/mapbox"
+import { RT_ALERT_EVENT, type RtAlertDetail } from "@/components/dashboard/realtime-events"
 import type {
   FillLayerSpecification,
   GeoJSONSource,
@@ -96,6 +98,20 @@ export function MapView({ className }: { className?: string }) {
   const [selected, setSelected] = useState<SelectedVessel | null>(null)
   const [vessels, setVessels] = useState<VesselCollection | null>(null)
   const [track, setTrack] = useState<TrackFeature | null>(null)
+  const [pings, setPings] = useState<Array<RtAlertDetail & { key: number }>>([])
+
+  // Sonar ping event-driven dari AlertLiveSubscriber (plan 03 P4.2.2):
+  // render riak violet ~1.2s di koordinat alert, lalu elemen dihapus
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<RtAlertDetail>).detail
+      const key = Date.now()
+      setPings((current) => [...current, { ...detail, key }])
+      setTimeout(() => setPings((current) => current.filter((p) => p.key !== key)), 1_500)
+    }
+    window.addEventListener(RT_ALERT_EVENT, handler)
+    return () => window.removeEventListener(RT_ALERT_EVENT, handler)
+  }, [])
 
   // State layer + rentang waktu di URL (nuqs) — shareable & tahan reload (P2.1.4)
   const [mapState, setMapState] = useQueryStates({
@@ -422,6 +438,15 @@ export function MapView({ className }: { className?: string }) {
             />
           </Source>
         )}
+
+        {pings.map((ping) => (
+          <Marker key={ping.key} longitude={ping.lng} latitude={ping.lat} anchor="center">
+            <span className="relative grid place-items-center">
+              <span className="bg-signal size-2.5 rounded-full" />
+              <span className="sonar-ping absolute size-12" />
+            </span>
+          </Marker>
+        ))}
 
         {zoneHover && !selected && (
           <Popup

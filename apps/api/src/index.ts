@@ -34,7 +34,7 @@ app.on(['GET', 'POST'], '/api/v1/auth/*', (c) => auth.handler(c.req.raw));
 app.get('/api/v1/me', requireAuth, async (c) => {
   const agencyId = c.get('agencyId');
   const agency = agencyId
-    ? await prisma.agency.findUnique({ where: { id: agencyId }, select: { code: true, name: true } })
+    ? await prisma.agency.findUnique({ where: { id: agencyId }, select: { id: true, code: true, name: true } })
     : null;
   return c.json({
     id: c.get('userId'),

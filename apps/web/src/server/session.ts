@@ -6,7 +6,7 @@ export type SessionUser = {
   name: string;
   email: string;
   role: string;
-  agency: { code: string; name: string } | null;
+  agency: { id: string; code: string; name: string } | null;
 };
 
 /**

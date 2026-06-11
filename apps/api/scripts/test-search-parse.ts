@@ -1,6 +1,8 @@
 // Test matrix NL search router (plan 06 Test 3.1).
 // Pakai: pnpm --filter api exec tsx scripts/test-search-parse.ts
 // Butuh web+api dev jalan (login lewat proxy :3000 — origin check Better Auth).
+export {};
+
 const BASE = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
 
 const login = await fetch(`${BASE}/api/v1/auth/sign-in/email`, {
