@@ -101,7 +101,11 @@ for (let i = 0; i < VESSEL_COUNT; i++) {
 const FOREIGN_IN_EEZ = { id: 'seed_vsl_foreign_eez', mmsi: '991000001', name: 'LIAO DONG YU 501', flag: 'CHN', type: 'fishing' };
 const AIS_GAP_VESSEL = { id: 'seed_vsl_ais_gap', mmsi: '991000002', name: 'FV SHADOW RUNNER', flag: 'VNM', type: 'fishing' };
 const MPA_LOITERER = { id: 'seed_vsl_mpa_loiter', mmsi: '991000003', name: 'KM PENYUSUP RAJA AMPAT', flag: 'IDN', type: 'fishing' };
-seedVessels.push(FOREIGN_IN_EEZ, AIS_GAP_VESSEL, MPA_LOITERER);
+// Pasangan encounter <500m selama ≥2 jam (plan 05 P1.1.4) + kapal cargo berpola fishing (P1.1.5)
+const ENCOUNTER_A = { id: 'seed_vsl_enc_a', mmsi: '991000004', name: 'FV GEMINI ALPHA', flag: 'VNM', type: 'fishing' };
+const ENCOUNTER_B = { id: 'seed_vsl_enc_b', mmsi: '991000005', name: 'MV GEMINI BRAVO', flag: 'PAN', type: 'cargo' };
+const CARGO_TRAWLER = { id: 'seed_vsl_cargo_trawl', mmsi: '991000006', name: 'MV HEAVY DECEIVER', flag: 'IDN', type: 'cargo' };
+seedVessels.push(FOREIGN_IN_EEZ, AIS_GAP_VESSEL, MPA_LOITERER, ENCOUNTER_A, ENCOUNTER_B, CARGO_TRAWLER);
 
 for (const v of seedVessels) {
   await prisma.vessel.upsert({
@@ -171,7 +175,67 @@ for (let i = 0; i < VESSEL_COUNT; i++) {
 // Skenario: kapal asing patroli ZEE Natuna; AIS gap 6 jam; loitering diam di MPA Raja Ampat
 await insertTrack(FOREIGN_IN_EEZ.id, { lng: 108.8, lat: 5.2 });
 await insertTrack(AIS_GAP_VESSEL.id, { lng: 106.5, lat: 3.8 }, { gapFromHour: 14, gapHours: 6 });
-await insertTrack(MPA_LOITERER.id, { lng: 130.45, lat: -0.55 }, { freeze: true });
+await insertTrack(MPA_LOITERER.id, { lng: 130.45, lat: -0.55 }, { freeze: true })
+
+// Skenario encounter: dua kapal berlayar berdampingan <500m selama 4 jam terakhir window
+{
+  let lng = 112.2;
+  let lat = -5.1;
+  let heading = 0.6;
+  for (let i = 0; i < POSITIONS_PER_VESSEL; i++) {
+    const hoursAgo = TRACK_WINDOW_HOURS - i * stepHours;
+    heading += (rand() - 0.5) * 0.2;
+    const dist = 3 * stepHours * KNOT_TO_DEG_PER_HOUR; // 3 kn pelan, side-by-side
+    lng += Math.cos(heading) * dist;
+    lat += Math.sin(heading) * dist;
+    const ts = new Date(anchorMs - hoursAgo * 3_600_000);
+    // Pasangan B hanya merapat (<500m ≈ 0.0045°) di 6 jam terakhir
+    const close = hoursAgo <= 6;
+    const offset = close ? 0.002 : 0.2;
+    for (const [vid, dLng] of [[ENCOUNTER_A.id, 0], [ENCOUNTER_B.id, offset]] as const) {
+      await prisma.$executeRaw`
+        INSERT INTO "VesselPosition" (id, vessel_id, "timestamp", lat, lng, position_geom, sog, cog, source)
+        VALUES (
+          ${`seed_pos_${vid}_${i}`}, ${vid}, ${ts}, ${lat}, ${lng + dLng},
+          ST_SetSRID(ST_MakePoint(${lng + dLng}::float8, ${lat}::float8), 4326),
+          3.0, ${Math.round(((heading * 180) / Math.PI + 360) % 360)}, 'seed'
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          "timestamp" = EXCLUDED."timestamp", lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+          position_geom = EXCLUDED.position_geom, sog = EXCLUDED.sog, cog = EXCLUDED.cog
+      `;
+      positionCount++;
+    }
+  }
+}
+
+// Skenario behavior mismatch: kapal cargo SOG 2.5–4.5 kn dengan belokan tajam tiap step
+{
+  let lng = 114.0;
+  let lat = -5.8;
+  let heading = rand() * 2 * Math.PI;
+  for (let i = 0; i < POSITIONS_PER_VESSEL; i++) {
+    const hoursAgo = TRACK_WINDOW_HOURS - i * stepHours;
+    heading += (rand() < 0.5 ? -1 : 1) * (0.8 + rand() * 0.8); // belok 45–90°: pola trawling
+    const sog = 2.6 + rand() * 1.6; // dalam band fishing 2.5–4.5
+    const dist = sog * stepHours * KNOT_TO_DEG_PER_HOUR;
+    lng += Math.cos(heading) * dist;
+    lat += Math.sin(heading) * dist;
+    const ts = new Date(anchorMs - hoursAgo * 3_600_000);
+    await prisma.$executeRaw`
+      INSERT INTO "VesselPosition" (id, vessel_id, "timestamp", lat, lng, position_geom, sog, cog, source)
+      VALUES (
+        ${`seed_pos_${CARGO_TRAWLER.id}_${i}`}, ${CARGO_TRAWLER.id}, ${ts}, ${lat}, ${lng},
+        ST_SetSRID(ST_MakePoint(${lng}::float8, ${lat}::float8), 4326),
+        ${Math.round(sog * 10) / 10}, ${Math.round(((heading * 180) / Math.PI + 360) % 360)}, 'seed'
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        "timestamp" = EXCLUDED."timestamp", lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+        position_geom = EXCLUDED.position_geom, sog = EXCLUDED.sog, cog = EXCLUDED.cog
+    `;
+    positionCount++;
+  }
+};
 console.log(`[seed-demo] positions: ${positionCount}`);
 
 // ──────────────── 3. VesselEvent skenario (gap & loitering) ─────────────────

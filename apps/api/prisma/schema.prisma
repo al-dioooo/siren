@@ -270,6 +270,14 @@ model PasalCitation {
   @@map("PasalCitation")
 }
 
+model EngineMeta {
+  key       String   @id // mis. alert_engine_last_run
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("EngineMeta")
+}
+
 model AuditLog {
   id         String   @id
   actorId    String?  @map("actor_id")
