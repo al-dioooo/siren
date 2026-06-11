@@ -1,0 +1,285 @@
+// SIREN — schema resmi 17 tabel (spesifikasi: Feature Plans/01-foundation-infra.md Stage 3)
+// PostGIS/pgvector via Unsupported(); query spatial/vector lewat $queryRaw.
+// Runtime: pooler URL (6543). Migration: DIRECT_URL (5432).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────────────────────── Better Auth (4 tabel) ─────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          String    @default("operator") // operator | admin
+  agencyId      String?   @map("agency_id")
+  agency        Agency?   @relation(fields: [agencyId], references: [id])
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  sessions        Session[]
+  accounts        Account[]
+  caseUpdates     CaseUpdate[]
+  caseAttachments CaseAttachment[]
+  openedCases     Case[]           @relation("CaseOpener")
+  auditLogs       AuditLog[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("verification")
+}
+
+// ───────────────────────── Domain (13 tabel) ─────────────────────────
+
+model Agency {
+  id        String   @id
+  code      String   @unique // PSDKP | BAKAMLA | KKP | POLRI | TNI_AL
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users             User[]
+  jurisdictionRules JurisdictionRule[]
+  alerts            Alert[]
+  cases             Case[]
+
+  @@map("Agency")
+}
+
+model Vessel {
+  id             String    @id
+  mmsi           String    @unique
+  imo            String?
+  name           String?
+  flag           String?   // ISO 3166 alpha-3, mis. IDN
+  vesselType     String?   @map("vessel_type") // fishing | cargo | tanker | ...
+  gfwVesselId    String?   @map("gfw_vessel_id")
+  licensedWppId  String?   @map("licensed_wpp_id")
+  licensedWpp    WppZone?  @relation(fields: [licensedWppId], references: [id])
+  lastEnrichedAt DateTime? @map("last_enriched_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  positions VesselPosition[]
+  events    VesselEvent[]
+  alerts    Alert[]
+  cases     Case[]
+
+  @@map("Vessel")
+}
+
+model VesselPosition {
+  id           String                                @id
+  vesselId     String                                @map("vessel_id")
+  vessel       Vessel                                @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  timestamp    DateTime
+  lat          Float
+  lng          Float
+  positionGeom Unsupported("geometry(Point,4326)")   @map("position_geom")
+  sog          Float? // speed over ground, knot
+  cog          Float? // course over ground, derajat
+  wppZoneId    String?                               @map("wpp_zone_id") // diisi trigger DB
+  source       String                                @default("gfw") // gfw | seed
+  createdAt    DateTime                              @default(now()) @map("created_at")
+
+  @@unique([vesselId, timestamp])
+  @@map("VesselPosition")
+}
+
+model VesselEvent {
+  id          String                                 @id
+  gfwEventId  String                                 @unique @map("gfw_event_id") // kunci dedup
+  vesselId    String                                 @map("vessel_id")
+  vessel      Vessel                                 @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  eventType   String                                 @map("event_type") // fishing | encounter | loitering | gap | port_visit
+  startAt     DateTime                               @map("start_at")
+  endAt       DateTime?                              @map("end_at")
+  lat         Float?
+  lng         Float?
+  eventGeom   Unsupported("geometry(Point,4326)")?   @map("event_geom")
+  payloadJson Json                                   @map("payload_json")
+  createdAt   DateTime                               @default(now()) @map("created_at")
+
+  @@map("VesselEvent")
+}
+
+model WppZone {
+  id     String                                     @id
+  zoneId String                                     @unique @map("zone_id") // WPP-571 … WPP-718
+  name   String
+  geom   Unsupported("geometry(MultiPolygon,4326)")
+
+  licensedVessels Vessel[]
+
+  @@map("WppZone")
+}
+
+model MarineProtectedArea {
+  id   String                                     @id
+  name String
+  geom Unsupported("geometry(MultiPolygon,4326)")
+
+  @@map("MarineProtectedArea")
+}
+
+model JurisdictionRule {
+  id               String  @id
+  priority         Int // asc = dievaluasi lebih dulu
+  ruleType         String? @map("rule_type") // null = berlaku semua rule
+  vesselFlagScope  String  @default("any") @map("vessel_flag_scope") // foreign | domestic | any
+  severityMin      String? @map("severity_min")
+  assignedAgencyId String  @map("assigned_agency_id")
+  assignedAgency   Agency  @relation(fields: [assignedAgencyId], references: [id])
+  active           Boolean @default(true)
+
+  @@map("JurisdictionRule")
+}
+
+model Alert {
+  id               String                              @id
+  vesselId         String                              @map("vessel_id")
+  vessel           Vessel                              @relation(fields: [vesselId], references: [id])
+  ruleType         String                              @map("rule_type")
+  severity         String // critical | high | medium | low
+  status           String                              @default("new") // new | dispatched | in_progress | resolved | false_positive
+  assignedAgencyId String?                             @map("assigned_agency_id")
+  assignedAgency   Agency?                             @relation(fields: [assignedAgencyId], references: [id])
+  wppZoneId        String?                             @map("wpp_zone_id")
+  lat              Float
+  lng              Float
+  positionGeom     Unsupported("geometry(Point,4326)") @map("position_geom")
+  evidenceJson     Json                                @map("evidence_json")
+  explanation      String? // LLM, persist sekali — JANGAN regenerate
+  explanationAt    DateTime?                           @map("explanation_at")
+  createdAt        DateTime                            @default(now()) @map("created_at")
+
+  case Case?
+
+  @@map("Alert")
+}
+
+model Case {
+  id               String   @id
+  caseCode         String   @unique @map("case_code") // CASE-XXXXXX
+  alertId          String   @unique @map("alert_id")
+  alert            Alert    @relation(fields: [alertId], references: [id])
+  vesselId         String   @map("vessel_id")
+  vessel           Vessel   @relation(fields: [vesselId], references: [id])
+  assignedAgencyId String   @map("assigned_agency_id")
+  assignedAgency   Agency   @relation(fields: [assignedAgencyId], references: [id])
+  status           String   @default("opened") // opened | in_progress | resolved | closed
+  openedById       String   @map("opened_by_id")
+  openedBy         User     @relation("CaseOpener", fields: [openedById], references: [id])
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  updates     CaseUpdate[]
+  attachments CaseAttachment[]
+
+  @@map("Case")
+}
+
+model CaseUpdate {
+  id         String   @id
+  caseId     String   @map("case_id")
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId   String   @map("author_id")
+  author     User     @relation(fields: [authorId], references: [id])
+  kind       String // note | status_change | handoff | attachment
+  body       String?
+  fromStatus String?  @map("from_status")
+  toStatus   String?  @map("to_status")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("CaseUpdate")
+}
+
+model CaseAttachment {
+  id          String   @id
+  caseId      String   @map("case_id")
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploaderId  String   @map("uploader_id")
+  uploader    User     @relation(fields: [uploaderId], references: [id])
+  storagePath String   @map("storage_path") // Supabase Storage
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  sizeBytes   Int      @map("size_bytes")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("CaseAttachment")
+}
+
+model PasalCitation {
+  id        String                        @id
+  lawRef    String                        @unique @map("law_ref") // mis. "UU 45/2009 Pasal 93"
+  title     String
+  body      String
+  sourceUrl String                        @map("source_url")
+  embedding Unsupported("vector(1536)")?
+  fetchedAt DateTime                      @default(now()) @map("fetched_at")
+
+  @@map("PasalCitation")
+}
+
+model AuditLog {
+  id         String   @id
+  actorId    String?  @map("actor_id")
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String // mis. alert.dispatch
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  metaJson   Json     @default("{}") @map("meta_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  // Append-only: tidak ada UPDATE/DELETE dari aplikasi.
+
+  @@map("AuditLog")
+}
