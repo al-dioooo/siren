@@ -59,7 +59,14 @@ export function FeedFilters() {
       )}
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant={activeCount > 0 ? "default" : "outline"} size="sm" className="h-7" />}
+          render={
+            <Button
+              variant={activeCount > 0 ? "default" : "outline"}
+              size="sm"
+              className="h-7"
+              aria-label="Filter feed"
+            />
+          }
         >
           <ListFilter className="size-3.5" />
         </DropdownMenuTrigger>

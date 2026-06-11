@@ -87,7 +87,8 @@
   --territory-dim: rgb(34 211 238 / 0.18);
   --foam: #eaeef7;
   --mist-t: #9aa6bf;
-  --fathom: #5e6b85;
+  /* a11y: ≥4.5:1 di atas abyss/trench/hull/deck (Lighthouse color-contrast) */
+  --fathom: #8593ae;
   --sev-critical: #ef4444;
   --sev-high: #f97316;
   --sev-medium: #eab308;

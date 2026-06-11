@@ -44,7 +44,8 @@ export function DashboardShell({
 
             <AssistantOpenButton />
 
-            <div className="border-fog ml-1 hidden h-8 items-center gap-2 border-l pl-3 sm:flex">
+            {/* Identitas disembunyikan <lg agar header muat di tablet (perf pass P2.2.3) */}
+            <div className="border-fog ml-1 hidden h-8 items-center gap-2 border-l pl-3 lg:flex">
               <div className="bg-deck grid size-7 place-items-center rounded-sm">
                 <Radio className="text-territory size-3.5" />
               </div>
