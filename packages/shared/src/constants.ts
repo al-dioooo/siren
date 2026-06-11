@@ -71,6 +71,27 @@ export const RULE_LAW_REFS: Record<RuleType, string[]> = {
   behavior_mismatch: ['UU 45/2009 Pasal 85', 'UU 45/2009 Pasal 93'],
 };
 
+/** Rentang waktu peta (plan 03 P2.1.4) — '24h' adalah default UI & query stats */
+export const MAP_TIME_RANGES = ['24h', '48h', '7d'] as const;
+export type MapTimeRange = (typeof MAP_TIME_RANGES)[number];
+
+export const MAP_TIME_RANGE_HOURS: Record<MapTimeRange, number> = {
+  '24h': 24,
+  '48h': 48,
+  '7d': 168,
+};
+
+export const MAP_TIME_RANGE_LABELS: Record<MapTimeRange, string> = {
+  '24h': '24 Jam',
+  '48h': '48 Jam',
+  '7d': '7 Hari',
+};
+
+export const MAP_DEFAULT_TIME_RANGE: MapTimeRange = '24h';
+
+/** Status alert yang dihitung "aktif" di stats strip & feed */
+export const ACTIVE_ALERT_STATUSES = ['new', 'dispatched', 'in_progress'] as const satisfies readonly AlertStatus[];
+
 /** Rate limits (plan 02 / 06) */
 export const RATE_LIMITS = {
   CHAT_PER_MINUTE: 10,

@@ -7,6 +7,7 @@ import { PORT } from './lib/env';
 import { loginRateLimit } from './lib/ratelimit';
 import { requireAuth } from './middleware/require-auth';
 import { prisma } from './lib/prisma';
+import { statsRoutes } from './routes/stats';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -40,6 +41,8 @@ app.get('/api/v1/me', requireAuth, async (c) => {
     agency,
   });
 });
+
+app.route('/', statsRoutes);
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[api] listening on :${info.port}`);
