@@ -1,14 +1,15 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Map, {
   Layer,
   Marker,
   NavigationControl,
   Popup,
   Source,
+  type MapRef,
 } from "react-map-gl/mapbox"
-import type { FillLayerSpecification, LineLayerSpecification } from "mapbox-gl"
+import type { FillLayerSpecification, LineLayerSpecification, Map as MapboxMap } from "mapbox-gl"
 import { Clock, Layers, Maximize2, Minus, Plus, Ship } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataRow, SeverityChip } from "@/components/siren"
@@ -71,11 +72,18 @@ const sourceLayers = {
   mpa: process.env.NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER ?? "mpa",
 }
 
+const studioLayerIds = {
+  wpp: ["siren-wpp"],
+  eez: ["siren-eez"],
+  mpa: ["siren-mpa"],
+}
+
 function usableEnv(value: string | undefined) {
   return Boolean(value && !value.includes("<") && !value.includes("your-") && value !== "todo")
 }
 
 export function MapView({ className }: { className?: string }) {
+  const mapRef = useRef<MapRef>(null)
   const [selected, setSelected] = useState<DemoVessel | null>(null)
   const [layers, setLayers] = useState({
     wpp: true,
@@ -86,6 +94,8 @@ export function MapView({ className }: { className?: string }) {
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   const hasPublicToken = usableEnv(token) && token?.startsWith("pk.")
+  const studioStyleUrl = process.env.NEXT_PUBLIC_MAPBOX_STYLE_URL
+  const hasStudioStyle = usableEnv(studioStyleUrl)
 
   const configuredSources = useMemo(
     () => ({
@@ -96,6 +106,28 @@ export function MapView({ className }: { className?: string }) {
     []
   )
 
+  const syncStudioLayerVisibility = useCallback(
+    (map: MapboxMap | null | undefined) => {
+      if (!hasStudioStyle || !map) {
+        return
+      }
+
+      for (const [key, ids] of Object.entries(studioLayerIds)) {
+        const visibility = layers[key as keyof typeof studioLayerIds] ? "visible" : "none"
+        for (const id of ids) {
+          if (map.getLayer(id)) {
+            map.setLayoutProperty(id, "visibility", visibility)
+          }
+        }
+      }
+    },
+    [hasStudioStyle, layers]
+  )
+
+  useEffect(() => {
+    syncStudioLayerVisibility(mapRef.current?.getMap())
+  }, [syncStudioLayerVisibility])
+
   if (!hasPublicToken) {
     return <MapFallback className={className} reason="NEXT_PUBLIC_MAPBOX_TOKEN needs a public pk.* token" />
   }
@@ -103,13 +135,16 @@ export function MapView({ className }: { className?: string }) {
   return (
     <div className={cn("border-fog bg-trench relative overflow-hidden rounded-sm border", className)}>
       <Map
+        ref={mapRef}
         mapboxAccessToken={token}
         initialViewState={{ longitude: 118, latitude: -2.3, zoom: 4.4 }}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
-        style={{ width: "100%", height: "100%" }}
+        mapStyle={hasStudioStyle ? studioStyleUrl! : "mapbox://styles/mapbox/dark-v11"}
+        style={{ position: "absolute", inset: 0 }}
         attributionControl={false}
+        onLoad={(event) => syncStudioLayerVisibility(event.target)}
+        onStyleData={() => syncStudioLayerVisibility(mapRef.current?.getMap())}
       >
-        {layers.wpp && usableEnv(configuredSources.wpp) && (
+        {!hasStudioStyle && layers.wpp && usableEnv(configuredSources.wpp) && (
           <TerritorySource
             id="wpp"
             url={configuredSources.wpp!}
@@ -134,7 +169,7 @@ export function MapView({ className }: { className?: string }) {
           />
         )}
 
-        {layers.eez && usableEnv(configuredSources.eez) && (
+        {!hasStudioStyle && layers.eez && usableEnv(configuredSources.eez) && (
           <TerritorySource
             id="eez"
             url={configuredSources.eez!}
@@ -152,7 +187,7 @@ export function MapView({ className }: { className?: string }) {
           />
         )}
 
-        {layers.mpa && usableEnv(configuredSources.mpa) && (
+        {!hasStudioStyle && layers.mpa && usableEnv(configuredSources.mpa) && (
           <TerritorySource
             id="mpa"
             url={configuredSources.mpa!}

@@ -29,15 +29,16 @@ async function seedAgencies() {
 }
 
 type ZoneRow = { id: string; zoneId: string; name: string; geojson: object };
+type MpaRow = { id: string; name: string; geojson: object };
 
 function loadZones(): { wpp: ZoneRow[]; usedFallback: boolean } {
-  const geojsonPath = path.join(import.meta.dirname, 'data', 'wpp.geojson');
+  const geojsonPath = path.resolve(import.meta.dirname, '../../../../Geodata/WPPNRI_250K_5percent.json');
   if (existsSync(geojsonPath)) {
     const fc = JSON.parse(readFileSync(geojsonPath, 'utf8'));
-    const wpp = fc.features.map((f: { properties: { zone_id: string; name: string }; geometry: object }) => ({
-      id: `wpp_${f.properties.zone_id.replace('WPP-', '')}`,
-      zoneId: f.properties.zone_id,
-      name: f.properties.name,
+    const wpp = fc.features.map((f: { properties: { ID_WPP: string; NAMOBJ: string }; geometry: object }) => ({
+      id: `wpp_${f.properties.ID_WPP}`,
+      zoneId: `WPP-${f.properties.ID_WPP}`,
+      name: f.properties.NAMOBJ,
       geojson: f.geometry,
     }));
     return { wpp, usedFallback: false };
@@ -53,10 +54,32 @@ function loadZones(): { wpp: ZoneRow[]; usedFallback: boolean } {
   };
 }
 
+function loadMpas(): { mpas: MpaRow[]; usedFallback: boolean } {
+  const geojsonPath = path.resolve(import.meta.dirname, '../../../../Geodata/ZonasiKawasanKonservasi_5percent.json');
+  if (existsSync(geojsonPath)) {
+    const fc = JSON.parse(readFileSync(geojsonPath, 'utf8'));
+    const mpas = fc.features.map((f: { properties: { Id: number | string; NAMAOBJ?: string }; geometry: object }, index: number) => ({
+      id: `mpa_${index}_${f.properties.Id}`,
+      name: f.properties.NAMAOBJ?.trim() || `Kawasan Konservasi ${f.properties.Id}`,
+      geojson: f.geometry,
+    }));
+    return { mpas, usedFallback: false };
+  }
+
+  return {
+    mpas: MPA_FALLBACK.map((m) => ({
+      id: m.zoneId,
+      name: m.name,
+      geojson: bboxToGeoJsonPolygon(m.bbox),
+    })),
+    usedFallback: true,
+  };
+}
+
 async function seedWpp() {
   const { wpp, usedFallback } = loadZones();
   if (usedFallback) {
-    console.warn('[seed] ⚠️  wpp.geojson tidak ditemukan — pakai FALLBACK kotak kasar. Ganti sebelum demo!');
+    console.warn('[seed] WPP GeoJSON tidak ditemukan — pakai FALLBACK kotak kasar. Ganti sebelum demo!');
   }
   for (const z of wpp) {
     await prisma.$executeRaw`
@@ -70,16 +93,35 @@ async function seedWpp() {
 }
 
 async function seedMpa() {
-  for (const m of MPA_FALLBACK) {
-    const geojson = JSON.stringify(bboxToGeoJsonPolygon(m.bbox));
-    await prisma.$executeRaw`
+  const { mpas, usedFallback } = loadMpas();
+  if (usedFallback) {
+    console.warn('[seed] MPA GeoJSON tidak ditemukan — pakai FALLBACK demo.');
+  } else {
+    await prisma.marineProtectedArea.deleteMany();
+  }
+
+  for (let i = 0; i < mpas.length; i += 250) {
+    const chunk = mpas.slice(i, i + 250).map((m) => ({
+      id: m.id,
+      name: m.name,
+      geojson: JSON.stringify(m.geojson),
+    }));
+    await prisma.$executeRawUnsafe(
+      `
+      WITH data AS (
+        SELECT *
+        FROM jsonb_to_recordset($1::jsonb) AS x(id text, name text, geojson text)
+      )
       INSERT INTO "MarineProtectedArea" (id, name, geom)
-      VALUES (${m.zoneId}, ${m.name}, ST_Multi(ST_GeomFromGeoJSON(${geojson})))
+      SELECT id, name, ST_Multi(ST_GeomFromGeoJSON(geojson))
+      FROM data
       ON CONFLICT (id)
       DO UPDATE SET name = EXCLUDED.name, geom = EXCLUDED.geom
-    `;
+      `,
+      JSON.stringify(chunk),
+    );
   }
-  console.log(`[seed] mpa: ${MPA_FALLBACK.length}`);
+  console.log(`[seed] mpa: ${mpas.length}${usedFallback ? ' (fallback)' : ''}`);
 }
 
 async function seedJurisdictionRules() {
