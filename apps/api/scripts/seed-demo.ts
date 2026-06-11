@@ -117,6 +117,9 @@ console.log(`[seed-demo] vessels: ${seedVessels.length}`);
 const stepHours = TRACK_WINDOW_HOURS / POSITIONS_PER_VESSEL;
 let positionCount = 0;
 
+/** Jarak maksimum kapal dari fishing ground-nya (derajat ≈ ×111 km) */
+const PATROL_RADIUS_DEG = 0.15;
+
 async function insertTrack(vesselId: string, start: { lng: number; lat: number }, opts?: { gapFromHour?: number; gapHours?: number; freeze?: boolean }) {
   let { lng, lat } = start;
   let heading = rand() * 2 * Math.PI;
@@ -129,6 +132,12 @@ async function insertTrack(vesselId: string, start: { lng: number; lat: number }
     const sog = opts?.freeze ? 0.5 : SOG_MIN_KN + rand() * (SOG_MAX_KN - SOG_MIN_KN);
     if (!opts?.freeze) {
       heading += (rand() - 0.5) * 0.6; // belok pelan ±17°
+      // Mean-reverting: kapal beroperasi di sekitar fishing ground-nya,
+      // tidak hanyut ratusan km — supaya cluster LOD terbentuk realistis
+      const distFromStart = Math.hypot(lng - start.lng, lat - start.lat);
+      if (distFromStart > PATROL_RADIUS_DEG) {
+        heading = Math.atan2(start.lat - lat, start.lng - lng) + (rand() - 0.5) * 0.5;
+      }
       const dist = sog * stepHours * KNOT_TO_DEG_PER_HOUR;
       lng += Math.cos(heading) * dist;
       lat += Math.sin(heading) * dist;
@@ -155,8 +164,8 @@ async function insertTrack(vesselId: string, start: { lng: number; lat: number }
 for (let i = 0; i < VESSEL_COUNT; i++) {
   const startPoint = SEA_POINTS[i % SEA_POINTS.length]!;
   await insertTrack(`seed_vsl_${i}`, {
-    lng: startPoint.lng + (rand() - 0.5) * 0.8,
-    lat: startPoint.lat + (rand() - 0.5) * 0.8,
+    lng: startPoint.lng + (rand() - 0.5) * 0.25,
+    lat: startPoint.lat + (rand() - 0.5) * 0.25,
   });
 }
 // Skenario: kapal asing patroli ZEE Natuna; AIS gap 6 jam; loitering diam di MPA Raja Ampat

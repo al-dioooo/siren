@@ -3,11 +3,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AGENCY_CODES } from '@siren/shared';
+import { hashPassword } from 'better-auth/crypto';
 import { auth } from '../src/lib/auth';
 import { prisma } from '../src/lib/prisma';
 import { bboxToGeoJsonPolygon, MPA_FALLBACK, WPP_FALLBACK } from './data/fallback-zones';
 
-const SEED_PASSWORD = process.env.SEED_PASSWORD ?? 'siren-demo-2026';
+const SEED_PASSWORD = 'password';
 
 const AGENCY_NAMES: Record<string, string> = {
   PSDKP: 'Pengawasan Sumber Daya Kelautan dan Perikanan',
@@ -154,6 +155,22 @@ async function seedUser(email: string, name: string, role: string, agencyCode: s
     // Lewat Better Auth supaya hash password konsisten dengan login
     await auth.api.signUpEmail({ body: { email, password: SEED_PASSWORD, name } });
   }
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+  const password = await hashPassword(SEED_PASSWORD);
+  const account = await prisma.account.findFirst({ where: { userId: user.id, providerId: 'credential' } });
+  if (account) {
+    await prisma.account.update({ where: { id: account.id }, data: { password } });
+  } else {
+    await prisma.account.create({
+      data: {
+        id: `account_${user.id}_credential`,
+        userId: user.id,
+        accountId: user.id,
+        providerId: 'credential',
+        password,
+      },
+    });
+  }
   const agency = agencyCode ? await prisma.agency.findUniqueOrThrow({ where: { code: agencyCode } }) : null;
   await prisma.user.update({
     where: { email },
@@ -166,7 +183,7 @@ async function seedUsers() {
   for (const code of AGENCY_CODES) {
     await seedUser(`operator.${code.toLowerCase()}@siren.id`, `Operator ${code}`, 'operator', code);
   }
-  console.log(`[seed] users: ${1 + AGENCY_CODES.length} (password: $SEED_PASSWORD atau default)`);
+  console.log(`[seed] users: ${1 + AGENCY_CODES.length} (password: ${SEED_PASSWORD})`);
 }
 
 async function main() {

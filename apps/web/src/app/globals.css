@@ -217,3 +217,16 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Map popover (DESIGN.md §7): buang frame putih default mapbox-gl */
+.siren-map-popup .mapboxgl-popup-content {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.siren-map-popup .mapboxgl-popup-tip {
+  border-top-color: var(--mist);
+  border-bottom-color: var(--mist);
+}

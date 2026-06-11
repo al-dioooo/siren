@@ -7,6 +7,7 @@ import { PORT } from './lib/env';
 import { loginRateLimit } from './lib/ratelimit';
 import { requireAuth } from './middleware/require-auth';
 import { prisma } from './lib/prisma';
+import { mapRoutes } from './routes/map';
 import { statsRoutes } from './routes/stats';
 import type { AppEnv } from './types';
 
@@ -43,6 +44,7 @@ app.get('/api/v1/me', requireAuth, async (c) => {
 });
 
 app.route('/', statsRoutes);
+app.route('/', mapRoutes);
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[api] listening on :${info.port}`);

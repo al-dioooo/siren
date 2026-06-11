@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Map, {
   Layer,
-  Marker,
   NavigationControl,
   Popup,
   Source,
@@ -11,6 +10,7 @@ import Map, {
 } from "react-map-gl/mapbox"
 import type {
   FillLayerSpecification,
+  GeoJSONSource,
   LineLayerSpecification,
   MapMouseEvent,
   Map as MapboxMap,
@@ -21,8 +21,9 @@ import {
   MAP_TIME_RANGES,
   MAP_TIME_RANGE_LABELS,
   type MapTimeRange,
+  type Severity,
 } from "@siren/shared"
-import { Clock, Layers, Maximize2, Minus, Plus, Ship } from "lucide-react"
+import { Clock, Layers, Maximize2, Minus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -39,65 +40,17 @@ import {
   zoneNameFromFeature,
 } from "./map-tokens"
 
-type DemoVessel = {
-  id: string
-  name: string
-  mmsi: string
-  lng: number
-  lat: number
-  severity: "critical" | "high" | "medium" | "low"
-  rule: string
-  zone: string
-}
-
-const demoVessels: DemoVessel[] = [
-  {
-    id: "demo-critical",
-    name: "KM Samudra Raya",
-    mmsi: "525021234",
-    lng: 108.92,
-    lat: 3.44,
-    severity: "critical",
-    rule: "Pelanggaran Zona",
-    zone: "WPP-711",
-  },
-  {
-    id: "demo-high",
-    name: "FV Northern Light",
-    mmsi: "440938120",
-    lng: 117.28,
-    lat: -1.72,
-    severity: "high",
-    rule: "AIS Gap",
-    zone: "Selat Makassar",
-  },
-  {
-    id: "demo-medium",
-    name: "MT Merapi",
-    mmsi: "525009812",
-    lng: 130.74,
-    lat: -1.13,
-    severity: "medium",
-    rule: "Loitering MPA",
-    zone: "Raja Ampat",
-  },
-]
-
-const severityMarkerClass: Record<DemoVessel["severity"], string> = {
-  critical: "bg-sev-critical text-sev-critical",
-  high: "bg-sev-high text-sev-high",
-  medium: "bg-sev-medium text-sev-medium",
-  low: "bg-sev-low text-sev-low",
-}
-
 const sourceLayers = {
   wpp: process.env.NEXT_PUBLIC_MAPBOX_WPP_SOURCE_LAYER ?? "wpp_zones",
   eez: process.env.NEXT_PUBLIC_MAPBOX_EEZ_SOURCE_LAYER ?? "eez",
   mpa: process.env.NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER ?? "mpa",
 }
 
-const layerKeys = ["wpp", "eez", "mpa", "vessels"] as const
+const layerKeys = ["wpp", "eez", "mpa", "vessels", "heatmap", "tracks"] as const
 type LayerKey = (typeof layerKeys)[number]
+
+/** Zoom threshold LOD (plan 03 Stage 3): heatmap 0–6, cluster 6+, simbol detail 11+ */
+const LOD = { heatmapMax: 6, clusterMin: 6, symbolDetail: 11 } as const
 
 /** Layer fill yang bisa di-hover untuk tooltip nama zona (P2.1.3) */
 const hoverableLayerIds = [
@@ -108,11 +61,30 @@ const hoverableLayerIds = [
   ...STUDIO_LAYER_IDS.eez,
 ]
 
-type ZoneHover = {
-  name: string
+type ZoneHover = { name: string; lng: number; lat: number }
+
+type SelectedVessel = {
+  vesselId: string
+  name: string | null
+  mmsi: string
+  flag: string | null
+  severity: Severity | null
   lng: number
   lat: number
 }
+
+type VesselCollection = GeoJSON.FeatureCollection<GeoJSON.Point>
+type TrackFeature = GeoJSON.Feature<GeoJSON.LineString>
+
+const severityColorExpression = [
+  "match",
+  ["get", "severity"],
+  "critical", MAP_COLORS.severity.critical,
+  "high", MAP_COLORS.severity.high,
+  "medium", MAP_COLORS.severity.medium,
+  "low", MAP_COLORS.severity.low,
+  /* tanpa alert aktif */ MAP_COLORS.territory,
+] as const
 
 function usableEnv(value: string | undefined) {
   return Boolean(value && !value.includes("<") && !value.includes("your-") && value !== "todo")
@@ -120,8 +92,10 @@ function usableEnv(value: string | undefined) {
 
 export function MapView({ className }: { className?: string }) {
   const mapRef = useRef<MapRef>(null)
-  const [selected, setSelected] = useState<DemoVessel | null>(null)
   const [zoneHover, setZoneHover] = useState<ZoneHover | null>(null)
+  const [selected, setSelected] = useState<SelectedVessel | null>(null)
+  const [vessels, setVessels] = useState<VesselCollection | null>(null)
+  const [track, setTrack] = useState<TrackFeature | null>(null)
 
   // State layer + rentang waktu di URL (nuqs) — shareable & tahan reload (P2.1.4)
   const [mapState, setMapState] = useQueryStates({
@@ -129,6 +103,8 @@ export function MapView({ className }: { className?: string }) {
     eez: parseAsBoolean.withDefault(true),
     mpa: parseAsBoolean.withDefault(true),
     vessels: parseAsBoolean.withDefault(true),
+    heatmap: parseAsBoolean.withDefault(true),
+    tracks: parseAsBoolean.withDefault(true),
     range: parseAsStringLiteral(MAP_TIME_RANGES).withDefault(MAP_DEFAULT_TIME_RANGE),
   })
 
@@ -137,6 +113,8 @@ export function MapView({ className }: { className?: string }) {
     eez: mapState.eez,
     mpa: mapState.mpa,
     vessels: mapState.vessels,
+    heatmap: mapState.heatmap,
+    tracks: mapState.tracks,
   }
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -152,6 +130,36 @@ export function MapView({ className }: { className?: string }) {
     }),
     []
   )
+
+  // Posisi terakhir per vessel sesuai rentang waktu (P3.1.1)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/v1/map/vessels?since=${mapState.range}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: VesselCollection | null) => {
+        if (!cancelled && data) setVessels(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [mapState.range])
+
+  // Ganti vessel → track lama dibersihkan, fetch track baru (P3.1.4)
+  useEffect(() => {
+    setTrack(null)
+    if (!selected) return
+    let cancelled = false
+    fetch(`/api/v1/vessels/${encodeURIComponent(selected.vesselId)}/track?since=${mapState.range}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: TrackFeature | null) => {
+        if (!cancelled && data && data.geometry.coordinates.length > 1) setTrack(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [selected, mapState.range])
 
   const syncStudioLayerVisibility = useCallback(
     (map: MapboxMap | null | undefined) => {
@@ -177,6 +185,13 @@ export function MapView({ className }: { className?: string }) {
 
   const handleZoneHover = useCallback((event: MapMouseEvent) => {
     const map = event.target
+    // Marker kapal lebih prioritas dari zona
+    const vesselLayers = ["vessels-point", "vessels-clusters"].filter((id) => map.getLayer(id))
+    if (vesselLayers.length > 0 && map.queryRenderedFeatures(event.point, { layers: vesselLayers }).length > 0) {
+      map.getCanvas().style.cursor = "pointer"
+      setZoneHover(null)
+      return
+    }
     const presentLayers = hoverableLayerIds.filter((id) => map.getLayer(id))
     if (presentLayers.length === 0) {
       return
@@ -192,6 +207,43 @@ export function MapView({ className }: { className?: string }) {
     }
   }, [])
 
+  const handleClick = useCallback((event: MapMouseEvent) => {
+    const map = event.target
+    const layersPresent = ["vessels-clusters", "vessels-point"].filter((id) => map.getLayer(id))
+    if (layersPresent.length === 0) return
+    const feature = map.queryRenderedFeatures(event.point, { layers: layersPresent })[0]
+    if (!feature) {
+      setSelected(null)
+      return
+    }
+
+    if (feature.layer?.id === "vessels-clusters") {
+      // Klik cluster → zoom expand (P3.1.3)
+      const clusterId = feature.properties?.cluster_id as number | undefined
+      const source = map.getSource("vessels") as GeoJSONSource | undefined
+      if (clusterId !== undefined && source) {
+        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return
+          const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates
+          map.easeTo({ center: [lng!, lat!], zoom: (zoom ?? map.getZoom() + 2) + 0.5 })
+        })
+      }
+      return
+    }
+
+    const props = feature.properties as Record<string, unknown>
+    const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates
+    setSelected({
+      vesselId: String(props.vesselId),
+      name: (props.name as string | null) ?? null,
+      mmsi: String(props.mmsi ?? "?"),
+      flag: (props.flag as string | null) ?? null,
+      severity: (props.severity as Severity | null) ?? null,
+      lng: lng!,
+      lat: lat!,
+    })
+  }, [])
+
   if (!hasPublicToken) {
     return <MapFallback className={className} reason="NEXT_PUBLIC_MAPBOX_TOKEN needs a public pk.* token" />
   }
@@ -205,10 +257,16 @@ export function MapView({ className }: { className?: string }) {
         mapStyle={hasStudioStyle ? studioStyleUrl! : "mapbox://styles/mapbox/dark-v11"}
         style={{ position: "absolute", inset: 0 }}
         attributionControl={false}
-        onLoad={(event) => syncStudioLayerVisibility(event.target)}
+        onLoad={(event) => {
+          if (process.env.NODE_ENV !== "production") {
+            ;(window as unknown as Record<string, unknown>).__sirenMap = event.target
+          }
+          syncStudioLayerVisibility(event.target)
+        }}
         onStyleData={() => syncStudioLayerVisibility(mapRef.current?.getMap())}
         onMouseMove={handleZoneHover}
         onMouseOut={() => setZoneHover(null)}
+        onClick={handleClick}
       >
         {!hasStudioStyle && layers.wpp && usableEnv(configuredSources.wpp) && (
           <TerritorySource
@@ -278,32 +336,92 @@ export function MapView({ className }: { className?: string }) {
           />
         )}
 
-        {layers.vessels &&
-          demoVessels.map((vessel) => (
-            <Marker
-              key={vessel.id}
-              longitude={vessel.lng}
-              latitude={vessel.lat}
-              anchor="center"
-              onClick={(event) => {
-                event.originalEvent.stopPropagation()
-                setSelected(vessel)
+        {/* Track vessel terpilih — LineString violet (P3.1.4) */}
+        {layers.tracks && track && (
+          <Source id="vessel-track" type="geojson" data={track}>
+            <Layer
+              id="vessel-track-line"
+              type="line"
+              paint={{
+                "line-color": MAP_COLORS.signal,
+                "line-width": 2,
+                "line-opacity": 0.9,
               }}
-            >
-              <button
-                className={cn(
-                  "relative grid size-5 place-items-center rounded-full border border-white/30 shadow-[0_0_22px_currentColor]",
-                  severityMarkerClass[vessel.severity]
-                )}
-                aria-label={`Buka ${vessel.name}`}
-              >
-                <Ship className="size-3 text-abyss" />
-                {vessel.severity === "critical" && (
-                  <span className="sonar-ping absolute size-12" />
-                )}
-              </button>
-            </Marker>
-          ))}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+          </Source>
+        )}
+
+        {/* Vessel markers LOD: heatmap → cluster → simbol severity (P3.1.2) */}
+        {layers.vessels && vessels && (
+          <Source
+            id="vessels"
+            type="geojson"
+            data={vessels}
+            cluster
+            clusterMaxZoom={14}
+            clusterRadius={50}
+          >
+            {layers.heatmap && (
+              <Layer
+                id="vessels-heat"
+                type="heatmap"
+                maxzoom={LOD.heatmapMax}
+                paint={{
+                  "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.6, LOD.heatmapMax, 1.6],
+                  "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 8, LOD.heatmapMax, 26],
+                  "heatmap-color": [
+                    "interpolate", ["linear"], ["heatmap-density"],
+                    0, "rgba(13,18,32,0)",
+                    0.3, "rgba(34,211,238,0.35)",
+                    0.6, "rgba(139,92,246,0.6)",
+                    1, "rgba(167,139,250,0.95)",
+                  ],
+                  "heatmap-opacity": ["interpolate", ["linear"], ["zoom"], LOD.heatmapMax - 1, 0.9, LOD.heatmapMax, 0],
+                }}
+              />
+            )}
+            <Layer
+              id="vessels-clusters"
+              type="circle"
+              minzoom={LOD.clusterMin}
+              filter={["has", "point_count"]}
+              paint={{
+                "circle-color": MAP_COLORS.signal,
+                "circle-opacity": 0.75,
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-opacity": 0.3,
+                "circle-stroke-width": 1,
+                "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24],
+              }}
+            />
+            <Layer
+              id="vessels-cluster-count"
+              type="symbol"
+              minzoom={LOD.clusterMin}
+              filter={["has", "point_count"]}
+              layout={{
+                "text-field": ["get", "point_count_abbreviated"],
+                "text-size": 11,
+                "text-font": ["DIN Pro Medium", "Arial Unicode MS Bold"],
+              }}
+              paint={{ "text-color": "#ffffff" }}
+            />
+            <Layer
+              id="vessels-point"
+              type="circle"
+              minzoom={LOD.clusterMin}
+              filter={["!", ["has", "point_count"]]}
+              paint={{
+                "circle-color": severityColorExpression as never,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], LOD.clusterMin, 4, LOD.symbolDetail, 7, 16, 10],
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-opacity": 0.4,
+                "circle-stroke-width": 1.2,
+              }}
+            />
+          </Source>
+        )}
 
         {zoneHover && !selected && (
           <Popup
@@ -326,6 +444,7 @@ export function MapView({ className }: { className?: string }) {
             longitude={selected.lng}
             latitude={selected.lat}
             anchor="bottom"
+            offset={10}
             closeButton={false}
             onClose={() => setSelected(null)}
             className="siren-map-popup"
@@ -333,16 +452,22 @@ export function MapView({ className }: { className?: string }) {
             <div className="bg-trench border-mist w-60 rounded-sm border p-3 text-foam">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-display text-sm font-semibold">{selected.name}</div>
+                  <div className="font-display text-sm font-semibold">
+                    {selected.name ?? "Kapal tanpa nama"}
+                  </div>
                   <div className="font-data text-fathom text-[0.6875rem]">
                     MMSI {selected.mmsi}
+                    {selected.flag ? ` · ${selected.flag}` : ""}
                   </div>
                 </div>
-                <SeverityChip severity={selected.severity} />
+                {selected.severity && <SeverityChip severity={selected.severity} />}
               </div>
-              <div className="text-mist-t text-xs">
-                {selected.rule} · {selected.zone}
-              </div>
+              <a
+                href={`/dashboard/vessels/${encodeURIComponent(selected.vesselId)}`}
+                className="bg-signal/15 text-signal-bright hover:bg-signal/25 font-data block rounded-sm px-2 py-1.5 text-center text-xs uppercase transition-colors"
+              >
+                Buka detail
+              </a>
             </div>
           </Popup>
         )}
@@ -353,6 +478,7 @@ export function MapView({ className }: { className?: string }) {
       <MapOverlay
         layers={layers}
         range={mapState.range}
+        vesselCount={vessels?.features.length ?? 0}
         onToggle={(key) => setMapState({ [key]: !layers[key] })}
         onRangeChange={(range) => setMapState({ range })}
       />
@@ -399,11 +525,13 @@ function TerritorySource({
 function MapOverlay({
   layers,
   range,
+  vesselCount,
   onToggle,
   onRangeChange,
 }: {
   layers: Record<LayerKey, boolean>
   range: MapTimeRange
+  vesselCount: number
   onToggle: (key: LayerKey) => void
   onRangeChange: (range: MapTimeRange) => void
 }) {
@@ -450,9 +578,9 @@ function MapOverlay({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <DataRow label="Primary Zone" value="WPP-711" />
-          <DataRow label="Realtime" value="Ready" />
-          <DataRow label="Markers" value="Demo Layer" />
-          <DataRow label="Tracks" value={MAP_TIME_RANGE_LABELS[range]} />
+          <DataRow label="Vessels" value={String(vesselCount)} />
+          <DataRow label="Window" value={MAP_TIME_RANGE_LABELS[range]} />
+          <DataRow label="Tracks" value={layers.tracks ? "On" : "Off"} />
         </div>
       </div>
     </>
