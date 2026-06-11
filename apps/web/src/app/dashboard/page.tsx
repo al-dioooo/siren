@@ -1,6 +1,9 @@
-import { MapView } from "@/components/map/map-view"
+import { Suspense } from "react"
+import { MapShell } from "@/components/map/map-shell"
+import { StatsStrip, StatsStripSkeleton } from "@/components/dashboard/stats-strip"
 import { SeverityChip, StatusBadge } from "@/components/siren"
 
+// Placeholder feed statis — diganti AlertFeed realtime di Blok C (plan 03 Stage 4)
 const feed = [
   {
     id: "ALT-8217",
@@ -38,14 +41,11 @@ export default function DashboardPage() {
   return (
     <div className="grid min-h-[calc(100svh-5.5rem)] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <section className="min-w-0 space-y-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric label="Active Alerts" value="24" delta="+6" />
-          <Metric label="Vessels Tracked" value="1,284" delta="24h" />
-          <Metric label="Dark Vessels" value="8" delta="critical" />
-          <Metric label="Open Cases" value="17" delta="5 agency" />
-        </div>
+        <Suspense fallback={<StatsStripSkeleton />}>
+          <StatsStrip />
+        </Suspense>
 
-        <MapView className="min-h-[560px]" />
+        <MapShell className="min-h-[560px]" />
       </section>
 
       <aside className="border-fog bg-trench rounded-sm border">
@@ -80,26 +80,6 @@ export default function DashboardPage() {
           ))}
         </div>
       </aside>
-    </div>
-  )
-}
-
-function Metric({
-  label,
-  value,
-  delta,
-}: {
-  label: string
-  value: string
-  delta: string
-}) {
-  return (
-    <div className="border-fog bg-hull rounded-sm border p-4">
-      <div className="text-fathom text-xs">{label}</div>
-      <div className="mt-2 flex items-end justify-between gap-2">
-        <div className="font-data text-2xl font-semibold text-foam">{value}</div>
-        <div className="font-data text-[0.6875rem] uppercase text-territory">{delta}</div>
-      </div>
     </div>
   )
 }

@@ -9,11 +9,35 @@ import Map, {
   Source,
   type MapRef,
 } from "react-map-gl/mapbox"
-import type { FillLayerSpecification, LineLayerSpecification, Map as MapboxMap } from "mapbox-gl"
+import type {
+  FillLayerSpecification,
+  LineLayerSpecification,
+  MapMouseEvent,
+  Map as MapboxMap,
+} from "mapbox-gl"
+import { parseAsBoolean, parseAsStringLiteral, useQueryStates } from "nuqs"
+import {
+  MAP_DEFAULT_TIME_RANGE,
+  MAP_TIME_RANGES,
+  MAP_TIME_RANGE_LABELS,
+  type MapTimeRange,
+} from "@siren/shared"
 import { Clock, Layers, Maximize2, Minus, Plus, Ship } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { DataRow, SeverityChip } from "@/components/siren"
 import { cn } from "@/lib/utils"
+import {
+  LOCAL_FILL_LAYER_IDS,
+  MAP_COLORS,
+  STUDIO_LAYER_IDS,
+  zoneNameFromFeature,
+} from "./map-tokens"
 
 type DemoVessel = {
   id: string
@@ -72,10 +96,22 @@ const sourceLayers = {
   mpa: process.env.NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER ?? "mpa",
 }
 
-const studioLayerIds = {
-  wpp: ["siren-wpp"],
-  eez: ["siren-eez"],
-  mpa: ["siren-mpa"],
+const layerKeys = ["wpp", "eez", "mpa", "vessels"] as const
+type LayerKey = (typeof layerKeys)[number]
+
+/** Layer fill yang bisa di-hover untuk tooltip nama zona (P2.1.3) */
+const hoverableLayerIds = [
+  LOCAL_FILL_LAYER_IDS.wpp,
+  LOCAL_FILL_LAYER_IDS.mpa,
+  ...STUDIO_LAYER_IDS.wpp,
+  ...STUDIO_LAYER_IDS.mpa,
+  ...STUDIO_LAYER_IDS.eez,
+]
+
+type ZoneHover = {
+  name: string
+  lng: number
+  lat: number
 }
 
 function usableEnv(value: string | undefined) {
@@ -85,12 +121,23 @@ function usableEnv(value: string | undefined) {
 export function MapView({ className }: { className?: string }) {
   const mapRef = useRef<MapRef>(null)
   const [selected, setSelected] = useState<DemoVessel | null>(null)
-  const [layers, setLayers] = useState({
-    wpp: true,
-    eez: true,
-    mpa: true,
-    vessels: true,
+  const [zoneHover, setZoneHover] = useState<ZoneHover | null>(null)
+
+  // State layer + rentang waktu di URL (nuqs) — shareable & tahan reload (P2.1.4)
+  const [mapState, setMapState] = useQueryStates({
+    wpp: parseAsBoolean.withDefault(true),
+    eez: parseAsBoolean.withDefault(true),
+    mpa: parseAsBoolean.withDefault(true),
+    vessels: parseAsBoolean.withDefault(true),
+    range: parseAsStringLiteral(MAP_TIME_RANGES).withDefault(MAP_DEFAULT_TIME_RANGE),
   })
+
+  const layers: Record<LayerKey, boolean> = {
+    wpp: mapState.wpp,
+    eez: mapState.eez,
+    mpa: mapState.mpa,
+    vessels: mapState.vessels,
+  }
 
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   const hasPublicToken = usableEnv(token) && token?.startsWith("pk.")
@@ -112,8 +159,8 @@ export function MapView({ className }: { className?: string }) {
         return
       }
 
-      for (const [key, ids] of Object.entries(studioLayerIds)) {
-        const visibility = layers[key as keyof typeof studioLayerIds] ? "visible" : "none"
+      for (const [key, ids] of Object.entries(STUDIO_LAYER_IDS)) {
+        const visibility = layers[key as keyof typeof STUDIO_LAYER_IDS] ? "visible" : "none"
         for (const id of ids) {
           if (map.getLayer(id)) {
             map.setLayoutProperty(id, "visibility", visibility)
@@ -121,12 +168,29 @@ export function MapView({ className }: { className?: string }) {
         }
       }
     },
-    [hasStudioStyle, layers]
+    [hasStudioStyle, layers.wpp, layers.eez, layers.mpa]
   )
 
   useEffect(() => {
     syncStudioLayerVisibility(mapRef.current?.getMap())
   }, [syncStudioLayerVisibility])
+
+  const handleZoneHover = useCallback((event: MapMouseEvent) => {
+    const map = event.target
+    const presentLayers = hoverableLayerIds.filter((id) => map.getLayer(id))
+    if (presentLayers.length === 0) {
+      return
+    }
+    const feature = map.queryRenderedFeatures(event.point, { layers: presentLayers })[0]
+    const name = zoneNameFromFeature(feature?.properties)
+    if (name) {
+      map.getCanvas().style.cursor = "crosshair"
+      setZoneHover({ name, lng: event.lngLat.lng, lat: event.lngLat.lat })
+    } else {
+      map.getCanvas().style.cursor = ""
+      setZoneHover(null)
+    }
+  }, [])
 
   if (!hasPublicToken) {
     return <MapFallback className={className} reason="NEXT_PUBLIC_MAPBOX_TOKEN needs a public pk.* token" />
@@ -143,6 +207,8 @@ export function MapView({ className }: { className?: string }) {
         attributionControl={false}
         onLoad={(event) => syncStudioLayerVisibility(event.target)}
         onStyleData={() => syncStudioLayerVisibility(mapRef.current?.getMap())}
+        onMouseMove={handleZoneHover}
+        onMouseOut={() => setZoneHover(null)}
       >
         {!hasStudioStyle && layers.wpp && usableEnv(configuredSources.wpp) && (
           <TerritorySource
@@ -150,10 +216,10 @@ export function MapView({ className }: { className?: string }) {
             url={configuredSources.wpp!}
             sourceLayer={sourceLayers.wpp}
             fillLayer={{
-              id: "wpp-fill",
+              id: LOCAL_FILL_LAYER_IDS.wpp,
               type: "fill",
               paint: {
-                "fill-color": "#22D3EE",
+                "fill-color": MAP_COLORS.territory,
                 "fill-opacity": 0.08,
               },
             }}
@@ -161,7 +227,7 @@ export function MapView({ className }: { className?: string }) {
               id: "wpp-outline",
               type: "line",
               paint: {
-                "line-color": "#22D3EE",
+                "line-color": MAP_COLORS.territory,
                 "line-opacity": 0.82,
                 "line-width": 1.2,
               },
@@ -178,7 +244,7 @@ export function MapView({ className }: { className?: string }) {
               id: "eez-outline",
               type: "line",
               paint: {
-                "line-color": "#22D3EE",
+                "line-color": MAP_COLORS.territory,
                 "line-dasharray": [2, 2],
                 "line-opacity": 0.75,
                 "line-width": 1.1,
@@ -193,10 +259,10 @@ export function MapView({ className }: { className?: string }) {
             url={configuredSources.mpa!}
             sourceLayer={sourceLayers.mpa}
             fillLayer={{
-              id: "mpa-fill",
+              id: LOCAL_FILL_LAYER_IDS.mpa,
               type: "fill",
               paint: {
-                "fill-color": "#EF4444",
+                "fill-color": MAP_COLORS.mpa,
                 "fill-opacity": 0.12,
               },
             }}
@@ -204,7 +270,7 @@ export function MapView({ className }: { className?: string }) {
               id: "mpa-outline",
               type: "line",
               paint: {
-                "line-color": "#EF4444",
+                "line-color": MAP_COLORS.mpa,
                 "line-opacity": 0.65,
                 "line-width": 1,
               },
@@ -239,6 +305,22 @@ export function MapView({ className }: { className?: string }) {
             </Marker>
           ))}
 
+        {zoneHover && !selected && (
+          <Popup
+            longitude={zoneHover.lng}
+            latitude={zoneHover.lat}
+            anchor="bottom"
+            offset={12}
+            closeButton={false}
+            closeOnClick={false}
+            className="siren-map-popup pointer-events-none"
+          >
+            <div className="bg-trench border-mist rounded-sm border px-2.5 py-1.5">
+              <span className="font-data text-foam text-xs">{zoneHover.name}</span>
+            </div>
+          </Popup>
+        )}
+
         {selected && (
           <Popup
             longitude={selected.lng}
@@ -268,7 +350,12 @@ export function MapView({ className }: { className?: string }) {
         <NavigationControl position="bottom-right" showCompass={false} />
       </Map>
 
-      <MapOverlay layers={layers} onToggle={(key) => setLayers((current) => ({ ...current, [key]: !current[key] }))} />
+      <MapOverlay
+        layers={layers}
+        range={mapState.range}
+        onToggle={(key) => setMapState({ [key]: !layers[key] })}
+        onRangeChange={(range) => setMapState({ range })}
+      />
     </div>
   )
 }
@@ -311,19 +398,36 @@ function TerritorySource({
 
 function MapOverlay({
   layers,
+  range,
   onToggle,
+  onRangeChange,
 }: {
-  layers: Record<"wpp" | "eez" | "mpa" | "vessels", boolean>
-  onToggle: (key: "wpp" | "eez" | "mpa" | "vessels") => void
+  layers: Record<LayerKey, boolean>
+  range: MapTimeRange
+  onToggle: (key: LayerKey) => void
+  onRangeChange: (range: MapTimeRange) => void
 }) {
   return (
     <>
       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-        <Button variant="outline" size="sm">
-          <Clock className="size-4" />
-          24 Jam
-        </Button>
-        {(["wpp", "eez", "mpa", "vessels"] as const).map((key) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+            <Clock className="size-4" />
+            {MAP_TIME_RANGE_LABELS[range]}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {MAP_TIME_RANGES.map((value) => (
+              <DropdownMenuItem
+                key={value}
+                onSelect={() => onRangeChange(value)}
+                className={cn(value === range && "text-signal-bright")}
+              >
+                {MAP_TIME_RANGE_LABELS[value]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {layerKeys.map((key) => (
           <Button
             key={key}
             variant={layers[key] ? "default" : "outline"}
@@ -348,7 +452,7 @@ function MapOverlay({
           <DataRow label="Primary Zone" value="WPP-711" />
           <DataRow label="Realtime" value="Ready" />
           <DataRow label="Markers" value="Demo Layer" />
-          <DataRow label="Tracks" value="24h Window" />
+          <DataRow label="Tracks" value={MAP_TIME_RANGE_LABELS[range]} />
         </div>
       </div>
     </>
