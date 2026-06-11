@@ -1,16 +1,16 @@
 // Embeddings Gemini untuk RAG (plan 05 Module 3.2 / DEPENDENCIES.md §8).
 // gemini-embedding-001, outputDimensionality 1536 (match kolom vector(1536) + HNSW).
 // Null-safe: gagal embed tidak boleh menggagalkan penyimpanan citation.
-import { google } from '@ai-sdk/google';
 import { embed } from 'ai';
+import { MODEL_EMBED, aiProvider, countLlmCall } from '../lib/ai';
 import { prisma } from '../lib/prisma';
 
-const EMBEDDING_MODEL = 'gemini-embedding-001';
 const EMBEDDING_DIM = 1536;
 
 export async function embedText(text: string): Promise<number[]> {
+  countLlmCall(MODEL_EMBED);
   const { embedding } = await embed({
-    model: google.textEmbedding(EMBEDDING_MODEL),
+    model: aiProvider.textEmbedding(MODEL_EMBED),
     value: text,
     providerOptions: { google: { outputDimensionality: EMBEDDING_DIM } },
   });
