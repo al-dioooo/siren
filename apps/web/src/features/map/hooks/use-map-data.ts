@@ -5,12 +5,13 @@ import type { MapTimeRange } from "@siren/shared/constants"
 import type { SelectedVessel, TrackFeature, VesselCollection } from "../map-types"
 
 /** Posisi terakhir per vessel sesuai rentang waktu (P3.1.1) */
-export function useVesselPositions(range: MapTimeRange) {
+export function useVesselPositions(range: MapTimeRange, scope: "mine" | "all") {
   const [vessels, setVessels] = useState<VesselCollection | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/v1/map/vessels?since=${range}`)
+    const params = new URLSearchParams({ since: range, scope })
+    fetch(`/api/v1/map/vessels?${params}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: VesselCollection | null) => {
         if (!cancelled && data) setVessels(data)
@@ -19,7 +20,7 @@ export function useVesselPositions(range: MapTimeRange) {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [range, scope])
 
   return vessels
 }

@@ -20,6 +20,14 @@ const hoverableLayerIds = [
 
 const PING_LIFETIME_MS = 1_500
 
+function hasLoadedMapStyle(map: MapboxMap) {
+  try {
+    return map.isStyleLoaded() && Boolean(map.getStyle())
+  } catch {
+    return false
+  }
+}
+
 /**
  * Sonar ping event-driven dari AlertLiveSubscriber (plan 03 P4.2.2):
  * render riak violet ~1.2s di koordinat alert, lalu elemen dihapus
@@ -55,11 +63,19 @@ export function useStudioLayerVisibility(
         return
       }
 
+      if (!hasLoadedMapStyle(map)) {
+        return
+      }
+
       for (const [key, ids] of Object.entries(STUDIO_LAYER_IDS)) {
         const visibility = layers[key as keyof typeof STUDIO_LAYER_IDS] ? "visible" : "none"
         for (const id of ids) {
-          if (map.getLayer(id)) {
-            map.setLayoutProperty(id, "visibility", visibility)
+          try {
+            if (map.getLayer(id)) {
+              map.setLayoutProperty(id, "visibility", visibility)
+            }
+          } catch {
+            return
           }
         }
       }
@@ -69,7 +85,8 @@ export function useStudioLayerVisibility(
   )
 
   useEffect(() => {
-    syncStudioLayerVisibility(mapRef.current?.getMap())
+    const frame = requestAnimationFrame(() => syncStudioLayerVisibility(mapRef.current?.getMap()))
+    return () => cancelAnimationFrame(frame)
   }, [syncStudioLayerVisibility, mapRef])
 
   return syncStudioLayerVisibility
@@ -81,6 +98,10 @@ export function useZoneHover() {
 
   const handleZoneHover = useCallback((event: MapMouseEvent) => {
     const map = event.target
+    if (!hasLoadedMapStyle(map)) {
+      return
+    }
+
     // Marker kapal lebih prioritas dari zona
     const vesselLayers = ["vessels-point", "vessels-clusters"].filter((id) => map.getLayer(id))
     if (vesselLayers.length > 0 && map.queryRenderedFeatures(event.point, { layers: vesselLayers }).length > 0) {
@@ -114,6 +135,10 @@ export function useVesselClick() {
 
   const handleClick = useCallback((event: MapMouseEvent) => {
     const map = event.target
+    if (!hasLoadedMapStyle(map)) {
+      return
+    }
+
     const layersPresent = ["vessels-clusters", "vessels-point"].filter((id) => map.getLayer(id))
     if (layersPresent.length === 0) return
     const feature = map.queryRenderedFeatures(event.point, { layers: layersPresent })[0]

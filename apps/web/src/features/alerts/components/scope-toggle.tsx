@@ -1,7 +1,7 @@
 "use client"
 
 import { ChevronDown } from "lucide-react"
-import { parseAsStringLiteral, useQueryState } from "nuqs"
+import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,10 +19,14 @@ const SCOPE_LABELS: Record<(typeof SCOPES)[number], string> = {
 
 /** Toggle scope feed via URL `?scope=mine|all` (plan 03 P4.1.2). */
 export function ScopeToggle() {
-  const [scope, setScope] = useQueryState(
-    "scope",
-    parseAsStringLiteral(SCOPES).withDefault("mine").withOptions({ shallow: false }),
+  const [{ scope }, setScopeState] = useQueryStates(
+    {
+      scope: parseAsStringLiteral(SCOPES).withDefault("mine"),
+      cursor: parseAsString,
+    },
+    { shallow: false },
   )
+  const label = SCOPE_LABELS[scope]
 
   return (
     <DropdownMenu>
@@ -30,20 +34,25 @@ export function ScopeToggle() {
         render={
           <Button
             data-tour="scope-toggle"
+            aria-label={`Scope data: ${label}`}
+            title="Scope data dashboard"
             variant="outline"
             size="sm"
             className="hidden gap-1.5 md:inline-flex"
           />
         }
       >
-        {SCOPE_LABELS[scope]}
+        {label}
         <ChevronDown className="size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {SCOPES.map((value) => (
           <DropdownMenuItem
             key={value}
-            onSelect={() => setScope(value)}
+            onClick={() => {
+              if (value === scope) return
+              void setScopeState({ scope: value, cursor: null })
+            }}
             className={cn(value === scope && "text-signal-bright")}
           >
             {SCOPE_LABELS[value]}

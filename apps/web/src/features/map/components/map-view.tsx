@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import Map, { Marker, NavigationControl, type MapRef } from "react-map-gl/mapbox"
 import type { Map as MapboxMap } from "mapbox-gl"
-import { parseAsBoolean, parseAsStringLiteral, useQueryStates } from "nuqs"
+import { parseAsBoolean, parseAsStringLiteral, useQueryState, useQueryStates } from "nuqs"
 import { MAP_DEFAULT_TIME_RANGE, MAP_TIME_RANGES } from "@siren/shared/constants"
 import { cn } from "@/lib/utils"
 import { hasPublicToken, hasStudioStyle, mapboxToken, studioStyleUrl } from "../map-env"
@@ -42,6 +42,7 @@ export function MapView({ className }: { className?: string }) {
     tracks: parseAsBoolean.withDefault(true),
     range: parseAsStringLiteral(MAP_TIME_RANGES).withDefault(MAP_DEFAULT_TIME_RANGE),
   })
+  const [scope] = useQueryState("scope", parseAsStringLiteral(["mine", "all"] as const).withDefault("mine"))
 
   const layers: Record<LayerKey, boolean> = {
     wpp: mapState.wpp,
@@ -55,7 +56,7 @@ export function MapView({ className }: { className?: string }) {
   const pings = useSonarPings()
   const { zoneHover, handleZoneHover, clearZoneHover } = useZoneHover()
   const { selected, setSelected, handleClick } = useVesselClick()
-  const vessels = useVesselPositions(mapState.range)
+  const vessels = useVesselPositions(mapState.range, scope)
   const track = useVesselTrack(selected, mapState.range)
   const syncStudioLayerVisibility = useStudioLayerVisibility(mapRef, layers)
 

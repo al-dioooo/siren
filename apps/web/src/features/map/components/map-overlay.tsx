@@ -42,7 +42,7 @@ export function MapOverlay({
             {MAP_TIME_RANGES.map((value) => (
               <DropdownMenuItem
                 key={value}
-                onSelect={() => onRangeChange(value)}
+                onClick={() => onRangeChange(value)}
                 className={cn(value === range && "text-signal-bright")}
               >
                 {MAP_TIME_RANGE_LABELS[value]}

@@ -3,12 +3,25 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { requireEnv } from './env';
 import { prisma } from './prisma';
 
+function authTrustedOrigins() {
+  const origins = [
+    requireEnv('BETTER_AUTH_URL'),
+    ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ];
+
+  return [...new Set(origins.map((origin) => new URL(origin).origin))];
+}
+
 // Tanpa secondaryStorage/Redis — cookieCache 5 menit cukup (OPTIMIZATIONS.md §8).
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   secret: requireEnv('BETTER_AUTH_SECRET'),
   baseURL: requireEnv('BETTER_AUTH_URL'),
   basePath: '/api/v1/auth',
+  trustedOrigins: authTrustedOrigins(),
   emailAndPassword: {
     enabled: true,
   },

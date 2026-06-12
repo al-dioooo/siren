@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -71,27 +72,31 @@ export function FeedFilters() {
           <ListFilter className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Severity</DropdownMenuLabel>
-          {SEVERITIES.map((s) => (
-            <DropdownMenuItem
-              key={s}
-              onSelect={() => void setSeverity(severity === s ? null : s)}
-              className={cn("font-data text-xs uppercase", severity === s && "text-signal-bright")}
-            >
-              {s}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Severity</DropdownMenuLabel>
+            {SEVERITIES.map((s) => (
+              <DropdownMenuItem
+                key={s}
+                onClick={() => void setSeverity(severity === s ? null : s)}
+                className={cn("font-data text-xs uppercase", severity === s && "text-signal-bright")}
+              >
+                {s}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>Rule</DropdownMenuLabel>
-          {RULE_TYPES.map((r) => (
-            <DropdownMenuItem
-              key={r}
-              onSelect={() => void setRuleType(ruleType === r ? null : r)}
-              className={cn("text-xs", ruleType === r && "text-signal-bright")}
-            >
-              {RULE_LABELS[r]}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Rule</DropdownMenuLabel>
+            {RULE_TYPES.map((r) => (
+              <DropdownMenuItem
+                key={r}
+                onClick={() => void setRuleType(ruleType === r ? null : r)}
+                className={cn("text-xs", ruleType === r && "text-signal-bright")}
+              >
+                {RULE_LABELS[r]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

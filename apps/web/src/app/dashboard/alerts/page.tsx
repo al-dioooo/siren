@@ -59,7 +59,7 @@ async function AlertsTable({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
-  const qs = new URLSearchParams({ limit: String(ALERT_QUEUE_PAGE_SIZE), scope: "all" })
+  const qs = new URLSearchParams({ limit: String(ALERT_QUEUE_PAGE_SIZE) })
   for (const key of QUEUE_PARAMS) {
     const value = params[key]
     if (typeof value === "string" && value) qs.set(key, value)
