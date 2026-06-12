@@ -61,6 +61,7 @@ function NavItem({
 
 export function DashboardNav({ role }: { role: string }) {
   const pathname = usePathname()
+  const isAdmin = role.toLowerCase() === "admin"
 
   return (
     <nav data-tour="nav" className="flex flex-1 flex-col gap-6 px-3 py-4">
@@ -89,7 +90,7 @@ export function DashboardNav({ role }: { role: string }) {
         </div>
         <div className="space-y-1">
           {utilityItems
-            .filter((item) => !item.adminOnly || role === "admin")
+            .filter((item) => !item.adminOnly || isAdmin)
             .map((item) => (
               <NavItem
                 key={item.href}
