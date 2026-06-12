@@ -111,12 +111,36 @@ Default seeded logins:
 |---|---|
 | `NEXT_PUBLIC_APP_URL` | Frontend URL (`http://localhost:3000` in dev) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox public token (URL-restricted) |
+| `NEXT_PUBLIC_MAPBOX_STYLE_URL` | Custom Mapbox Studio style used by the SIREN command map |
 | `NEXT_PUBLIC_MAPBOX_TILESET_WPP` | Mapbox tileset ID for WPP zones |
+| `NEXT_PUBLIC_MAPBOX_WPP_SOURCE_LAYER` | Source-layer name for the WPP vector tileset |
 | `NEXT_PUBLIC_MAPBOX_TILESET_EEZ` | Mapbox tileset ID for EEZ layer |
+| `NEXT_PUBLIC_MAPBOX_EEZ_SOURCE_LAYER` | Source-layer name for the EEZ vector tileset |
 | `NEXT_PUBLIC_MAPBOX_TILESET_MPA` | Mapbox tileset ID for MPA layer |
+| `NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER` | Source-layer name for the MPA vector tileset |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (for Realtime) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (for Realtime) |
 | `API_BASE_URL` | API origin for Next.js rewrites (`http://localhost:4000` in dev) |
+
+#### Mapbox `.env.local` example
+
+The command map uses a custom Mapbox Studio style plus three uploaded vector tilesets for WPP, EEZ, and MPA boundaries. These values are browser-public `NEXT_PUBLIC_*` credentials and are intentionally copy-ready for `apps/web/.env.local`:
+
+```bash
+NEXT_PUBLIC_MAPBOX_TOKEN="pk.eyJ1IjoiYWxpY2VldnIiLCJhIjoiY21wYnBpNndmMGJnNjJxczZnNjI5bTc3bCJ9.t8dK3WZZjKOuGyHw8qXRLw"
+NEXT_PUBLIC_MAPBOX_STYLE_URL="mapbox://styles/aliceevr/cmq8i4v06003i01scc6sihhyj"
+
+NEXT_PUBLIC_MAPBOX_TILESET_WPP="mapbox://aliceevr.rotwogz8eodw"
+NEXT_PUBLIC_MAPBOX_WPP_SOURCE_LAYER="76fdd9ad8ae4bc79938f"
+
+NEXT_PUBLIC_MAPBOX_TILESET_EEZ="mapbox://aliceevr.u1n8xs1di3bv"
+NEXT_PUBLIC_MAPBOX_EEZ_SOURCE_LAYER="6ee34d9a44dc259f182c"
+
+NEXT_PUBLIC_MAPBOX_TILESET_MPA="mapbox://aliceevr.sdmzja5wszyr"
+NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER="ec14c3b8517b261a3255"
+```
+
+Keep `MAPBOX_SECRET_TOKEN` only in `apps/api/.env`; it is used server-side for Static Images in evidence PDFs and must not be exposed through `NEXT_PUBLIC_*`.
 
 ## Scripts
 
