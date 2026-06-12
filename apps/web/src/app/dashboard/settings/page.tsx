@@ -1,7 +1,8 @@
-import { DataRow } from "@/components/siren"
+import { DataRow, SectionPanel } from "@/components/shared"
 import { getSessionOrRedirect } from "@/server/session"
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TutorialReplayButton } from "@/features/onboarding/components/tutorial-replay-button"
 
 export default function SettingsPage() {
   return (
@@ -20,14 +21,20 @@ export default function SettingsPage() {
 async function ProfileCard() {
   const user = await getSessionOrRedirect()
   return (
-    <section className="border-fog bg-trench max-w-xl rounded-sm border p-4">
-      <h2 className="font-display mb-3 text-sm font-semibold uppercase tracking-wide">Akun</h2>
+    <SectionPanel title="Akun" className="max-w-xl">
       <div className="grid grid-cols-2 gap-3">
         <DataRow label="Nama" value={user.name} />
         <DataRow label="Email" value={user.email} />
         <DataRow label="Role" value={user.role.toUpperCase()} />
         <DataRow label="Agency" value={user.agency ? `${user.agency.code} — ${user.agency.name}` : "—"} />
       </div>
-    </section>
+      <div className="border-fog mt-4 flex items-center justify-between gap-3 border-t pt-4">
+        <div>
+          <div className="text-foam text-sm font-medium">Onboarding</div>
+          <p className="text-mist-t text-xs">Ulangi walkthrough konsol tanpa mengubah status akun.</p>
+        </div>
+        <TutorialReplayButton />
+      </div>
+    </SectionPanel>
   )
 }

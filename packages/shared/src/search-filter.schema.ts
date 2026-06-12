@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { AGENCY_CODES, ALERT_STATUSES, RULE_TYPES, SEVERITIES, WPP_ZONE_IDS } from './constants';
+import {
+  AGENCY_CODES,
+  ALERT_STATUSES,
+  EMPTY_FILTER,
+  RULE_TYPES,
+  SEARCH_SINCE_VALUES,
+  SEVERITIES,
+  WPP_ZONE_IDS,
+  type SearchFilter,
+} from './constants';
 
 /**
  * Schema filter bersama: dipakai filter manual di /dashboard/alerts DAN
@@ -13,18 +22,9 @@ export const searchFilterSchema = z.object({
   agencyCode: z.enum(AGENCY_CODES).nullable().default(null),
   wppZone: z.enum(WPP_ZONE_IDS).nullable().default(null),
   /** Durasi relatif: '24h' | '7d' | '30d' */
-  since: z.enum(['24h', '7d', '30d']).nullable().default(null),
+  since: z.enum(SEARCH_SINCE_VALUES).nullable().default(null),
   /** Pencarian bebas: nama kapal / MMSI */
   vesselQuery: z.string().nullable().default(null),
-});
-export type SearchFilter = z.infer<typeof searchFilterSchema>;
+}) satisfies z.ZodType<SearchFilter>;
 
-export const EMPTY_FILTER: SearchFilter = {
-  severity: null,
-  status: null,
-  ruleType: null,
-  agencyCode: null,
-  wppZone: null,
-  since: null,
-  vesselQuery: null,
-};
+export { EMPTY_FILTER };

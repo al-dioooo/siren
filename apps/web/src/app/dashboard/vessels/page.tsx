@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { apiFetch } from "@/server/api"
-import { VesselSearch } from "./vessel-search"
+import { VesselSearch } from "@/features/vessels/components/vessel-search"
 
 type VesselRow = {
   id: string

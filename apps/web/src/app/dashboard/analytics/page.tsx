@@ -1,8 +1,8 @@
 import { Suspense } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/server/api"
-import { AnalyticsCharts, type DailyStatRow } from "./analytics-charts"
-import { RangePicker } from "./range-picker"
+import { AnalyticsCharts, type DailyStatRow } from "@/features/analytics/components/analytics-charts"
+import { RangePicker } from "@/features/analytics/components/range-picker"
 
 export default function AnalyticsPage({
   searchParams,

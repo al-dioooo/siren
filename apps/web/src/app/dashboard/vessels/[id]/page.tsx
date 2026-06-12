@@ -1,9 +1,9 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { RULE_LABELS, type AlertStatus, type RuleType, type Severity } from "@siren/shared"
-import { DataRow, SeverityChip, StatusBadge } from "@/components/siren"
-import { MiniMapShell } from "@/components/map/mini-map-shell"
+import { RULE_LABELS, type AlertStatus, type RuleType, type Severity } from "@siren/shared/constants"
+import { DataRow, EmptyText, SectionPanel, SeverityChip, StatusBadge } from "@/components/shared"
+import { MiniMapShell } from "@/features/map/components/mini-map-shell"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/server/api"
 import { formatDateTime, relativeTime } from "@/lib/relative-time"
@@ -64,8 +64,7 @@ async function VesselDetailContent({ params }: { params: Promise<{ id: string }>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="min-w-0 space-y-4">
           {/* Identity card */}
-          <section className="border-fog bg-trench rounded-sm border p-4">
-            <h2 className="font-display mb-3 text-sm font-semibold uppercase tracking-wide">Identitas</h2>
+          <SectionPanel title="Identitas">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
               <DataRow label="MMSI" value={vessel.mmsi} />
               <DataRow label="IMO" value={vessel.imo ?? "—"} />
@@ -90,15 +89,12 @@ async function VesselDetailContent({ params }: { params: Promise<{ id: string }>
                 </>
               )}
             </div>
-          </section>
+          </SectionPanel>
 
           {/* Riwayat alert */}
-          <section className="border-fog bg-trench rounded-sm border p-4">
-            <h2 className="font-display mb-3 text-sm font-semibold uppercase tracking-wide">
-              Riwayat Alert ({vessel.alerts.length})
-            </h2>
+          <SectionPanel title={`Riwayat Alert (${vessel.alerts.length})`}>
             {vessel.alerts.length === 0 ? (
-              <p className="text-mist-t text-sm">Tidak ada alert untuk kapal ini.</p>
+              <EmptyText>Tidak ada alert untuk kapal ini.</EmptyText>
             ) : (
               <ul className="divide-fog divide-y">
                 {vessel.alerts.map((a) => (
@@ -127,7 +123,7 @@ async function VesselDetailContent({ params }: { params: Promise<{ id: string }>
                 ))}
               </ul>
             )}
-          </section>
+          </SectionPanel>
         </div>
 
         {/* Track mini-map — empty state ramah saat tanpa posisi (Test 1.2) */}

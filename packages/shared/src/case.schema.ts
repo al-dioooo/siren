@@ -17,5 +17,4 @@ export const caseHandoffSchema = z.object({
   reason: z.string().min(3),
 });
 
-export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
-export const ATTACHMENT_MIME_WHITELIST = ['image/jpeg', 'image/png', 'application/pdf'] as const;
+export { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME_WHITELIST } from './constants';

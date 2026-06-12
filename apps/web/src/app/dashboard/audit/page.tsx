@@ -13,7 +13,7 @@ import {
 import { apiFetch } from "@/server/api"
 import { formatDateTime } from "@/lib/relative-time"
 import { cn } from "@/lib/utils"
-import { AuditFilters } from "./audit-filters"
+import { AuditFilters } from "@/features/audit/components/audit-filters"
 
 type AuditEntry = {
   id: string

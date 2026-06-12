@@ -62,6 +62,29 @@ export const WPP_ZONE_IDS = [
 ] as const;
 export type WppZoneId = (typeof WPP_ZONE_IDS)[number];
 
+export const SEARCH_SINCE_VALUES = ['24h', '7d', '30d'] as const;
+export type SearchSince = (typeof SEARCH_SINCE_VALUES)[number];
+
+export type SearchFilter = {
+  severity: Severity | null;
+  status: AlertStatus | null;
+  ruleType: RuleType | null;
+  agencyCode: AgencyCode | null;
+  wppZone: WppZoneId | null;
+  since: SearchSince | null;
+  vesselQuery: string | null;
+};
+
+export const EMPTY_FILTER: SearchFilter = {
+  severity: null,
+  status: null,
+  ruleType: null,
+  agencyCode: null,
+  wppZone: null,
+  since: null,
+  vesselQuery: null,
+};
+
 /** Pemetaan ruleType → pasal relevan (plan 05 P3.1.2) */
 export const RULE_LAW_REFS: Record<RuleType, string[]> = {
   zone_violation: ['UU 45/2009 Pasal 92', 'UU 45/2009 Pasal 93'],
@@ -91,6 +114,9 @@ export const MAP_DEFAULT_TIME_RANGE: MapTimeRange = '24h';
 
 /** Status alert yang dihitung "aktif" di stats strip & feed */
 export const ACTIVE_ALERT_STATUSES = ['new', 'dispatched', 'in_progress'] as const satisfies readonly AlertStatus[];
+
+export const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
+export const ATTACHMENT_MIME_WHITELIST = ['image/jpeg', 'image/png', 'application/pdf'] as const;
 
 /** Rate limits (plan 02 / 06) */
 export const RATE_LIMITS = {

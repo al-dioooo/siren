@@ -14,6 +14,7 @@ import { caseRoutes } from './routes/cases';
 import { mapRoutes } from './routes/map';
 import { statsRoutes } from './routes/stats';
 import { vesselRoutes } from './routes/vessels';
+import { writeAudit } from './services/audit.service';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -35,17 +36,58 @@ app.on(['GET', 'POST'], '/api/v1/auth/*', (c) => auth.handler(c.req.raw));
 
 // Profil user aktif (dipakai layout dashboard)
 app.get('/api/v1/me', requireAuth, async (c) => {
-  const agencyId = c.get('agencyId');
-  const agency = agencyId
-    ? await prisma.agency.findUnique({ where: { id: agencyId }, select: { id: true, code: true, name: true } })
-    : null;
+  const user = await prisma.user.findUnique({
+    where: { id: c.get('userId') },
+    select: {
+      tutorialCompletedAt: true,
+      agency: { select: { id: true, code: true, name: true } },
+    },
+  });
   return c.json({
     id: c.get('userId'),
     name: c.get('userName'),
     email: c.get('userEmail'),
     role: c.get('role'),
-    agency,
+    agency: user?.agency ?? null,
+    tutorialCompletedAt: user?.tutorialCompletedAt?.toISOString() ?? null,
   });
+});
+
+app.post('/api/v1/me/tutorial-complete', requireAuth, async (c) => {
+  const userId = c.get('userId');
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tutorialCompletedAt: true },
+  });
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  let completedAt = user.tutorialCompletedAt;
+
+  if (!completedAt) {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { tutorialCompletedAt: new Date() },
+      select: { tutorialCompletedAt: true },
+    });
+    completedAt = updated.tutorialCompletedAt;
+
+    writeAudit({
+      actorId: userId,
+      action: 'user.tutorial_complete',
+      targetType: 'user',
+      targetId: userId,
+      metaJson: { source: 'dashboard_tour' },
+    });
+  }
+
+  if (!completedAt) {
+    return c.json({ error: 'Tutorial completion failed' }, 500);
+  }
+
+  return c.json({ tutorialCompletedAt: completedAt.toISOString() });
 });
 
 app.route('/', statsRoutes);

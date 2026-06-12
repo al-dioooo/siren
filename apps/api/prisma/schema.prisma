@@ -23,6 +23,7 @@ model User {
   role          String    @default("operator") // operator | admin
   agencyId      String?   @map("agency_id")
   agency        Agency?   @relation(fields: [agencyId], references: [id])
+  tutorialCompletedAt DateTime? @map("tutorial_completed_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

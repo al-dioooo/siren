@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { RULE_LABELS, type CaseStatus, type RuleType, type Severity } from "@siren/shared"
-import { SeverityChip, StatusBadge } from "@/components/siren"
+import { RULE_LABELS, type CaseStatus, type RuleType, type Severity } from "@siren/shared/constants"
+import { SeverityChip, StatusBadge } from "@/components/shared"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table"
 import { apiFetch } from "@/server/api"
 import { relativeTime } from "@/lib/relative-time"
-import { CaseFilters } from "./case-filters"
+import { CaseFilters } from "@/features/cases/components/case-filters"
 
 type CaseRow = {
   id: string

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Radio, ShieldCheck } from 'lucide-react';
-import { LoginForm } from './login-form';
+import { LoginForm } from '@/features/auth/components/login-form';
 
 export default function LoginPage() {
   return (

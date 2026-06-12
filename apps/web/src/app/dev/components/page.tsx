@@ -3,10 +3,10 @@ import {
   ALERT_STATUSES,
   CASE_STATUSES,
   SEVERITIES,
-} from "@siren/shared"
+} from "@siren/shared/constants"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DataRow, SeverityChip, StatusBadge } from "@/components/siren"
+import { DataRow, SeverityChip, StatusBadge } from "@/components/shared"
 
 const colorTokens = [
   "abyss", "trench", "hull", "deck", "fog", "mist",

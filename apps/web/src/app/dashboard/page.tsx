@@ -1,7 +1,7 @@
 import { Suspense } from "react"
-import { MapShell } from "@/components/map/map-shell"
-import { AlertFeed, AlertFeedSkeleton } from "@/components/dashboard/alert-feed"
-import { StatsStrip, StatsStripSkeleton } from "@/components/dashboard/stats-strip"
+import { MapShell } from "@/features/map/components/map-shell"
+import { AlertFeed, AlertFeedSkeleton } from "@/features/alerts/components/alert-feed"
+import { StatsStrip, StatsStripSkeleton } from "@/features/dashboard/components/stats-strip"
 
 export default function DashboardPage({
   searchParams,

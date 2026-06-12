@@ -1,8 +1,10 @@
 import { Suspense } from "react"
-import { Toaster } from "sonner"
-import { AssistantPanel } from "@/components/assistant/assistant-panel"
-import { AlertLiveSubscriber } from "@/components/dashboard/alert-live-subscriber"
-import { DashboardShell } from "@/components/dashboard/dashboard-shell"
+import { AssistantOpenButton } from "@/features/assistant/components/assistant-open-button"
+import { LiveIndicator } from "@/features/alerts/components/live-indicator"
+import { NlSearch } from "@/features/alerts/components/nl-search"
+import { ScopeToggle } from "@/features/alerts/components/scope-toggle"
+import { DashboardRuntime } from "@/components/shared/dashboard-runtime"
+import { DashboardShell } from "@/features/dashboard/components/dashboard-shell"
 import { getSessionOrRedirect } from "@/server/session"
 
 export default async function DashboardLayout({
@@ -21,16 +23,21 @@ async function AuthenticatedDashboard({ children }: { children: React.ReactNode 
   const user = await getSessionOrRedirect()
 
   return (
-    <DashboardShell user={user}>
+    <DashboardShell
+      user={user}
+      search={<NlSearch />}
+      headerActions={
+        <>
+          <LiveIndicator />
+          <ScopeToggle />
+          <AssistantOpenButton />
+        </>
+      }
+    >
       {children}
-      <AlertLiveSubscriber agencyId={user.agency?.id ?? null} />
-      <AssistantPanel />
-      <Toaster
-        position="bottom-right"
-        theme="dark"
-        toastOptions={{
-          style: { background: "var(--trench)", border: "1px solid var(--fog)", color: "var(--foam)" },
-        }}
+      <DashboardRuntime
+        agencyId={user.agency?.id ?? null}
+        tutorialCompletedAt={user.tutorialCompletedAt}
       />
     </DashboardShell>
   )

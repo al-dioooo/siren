@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { SESSION_COOKIES } from '@/lib/auth-cookies';
 
 // Guard optimistik: cek keberadaan cookie session Better Auth.
 // Validasi session sesungguhnya terjadi di API VPS (requireAuth) —
 // proxy hanya mencegah flash halaman dashboard tanpa login (plan 02 P2.1.2).
-// Di HTTPS Better Auth memakai prefix __Secure- pada nama cookie.
-const SESSION_COOKIES = ['better-auth.session_token', '__Secure-better-auth.session_token'];
-
 export function proxy(request: NextRequest) {
   const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name));
   const { pathname } = request.nextUrl;
@@ -16,6 +14,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (pathname === '/' && hasSession) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   if (pathname === '/login' && hasSession) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
@@ -24,5 +26,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login'],
+  matcher: ['/', '/dashboard/:path*', '/login'],
 };

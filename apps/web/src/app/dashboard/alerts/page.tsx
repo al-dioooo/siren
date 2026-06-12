@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { RULE_LABELS, type AlertStatus, type RuleType, type Severity } from "@siren/shared"
-import { SeverityChip, StatusBadge } from "@/components/siren"
+import { RULE_LABELS, type AlertStatus, type RuleType, type Severity } from "@siren/shared/constants"
+import { SeverityChip, StatusBadge } from "@/components/shared"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/table"
 import { apiFetch } from "@/server/api"
 import { relativeTime } from "@/lib/relative-time"
-import { QueueFilters } from "./queue-filters"
-import { QuickDispatch } from "./quick-dispatch"
+import { QueueFilters } from "@/features/alerts/components/queue-filters"
+import { QuickDispatch } from "@/features/alerts/components/quick-dispatch"
+import { ALERT_QUEUE_PAGE_SIZE } from "@/lib/constants"
 
 const QUEUE_PARAMS = [
   "scope", "severity", "ruleType", "status", "since", "wppZone",
@@ -58,7 +59,7 @@ async function AlertsTable({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
-  const qs = new URLSearchParams({ limit: "50", scope: "all" })
+  const qs = new URLSearchParams({ limit: String(ALERT_QUEUE_PAGE_SIZE), scope: "all" })
   for (const key of QUEUE_PARAMS) {
     const value = params[key]
     if (typeof value === "string" && value) qs.set(key, value)
