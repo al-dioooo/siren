@@ -11,6 +11,7 @@ import { aiRoutes } from './routes/ai';
 import { alertRoutes } from './routes/alerts';
 import { auditRoutes } from './routes/audit';
 import { caseRoutes } from './routes/cases';
+import { consoleRoutes } from './routes/console';
 import { mapRoutes } from './routes/map';
 import { statsRoutes } from './routes/stats';
 import { vesselRoutes } from './routes/vessels';
@@ -97,6 +98,7 @@ app.route('/', caseRoutes);
 app.route('/', vesselRoutes);
 app.route('/', auditRoutes);
 app.route('/', aiRoutes);
+app.route('/', consoleRoutes);
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[api] listening on :${info.port}`);

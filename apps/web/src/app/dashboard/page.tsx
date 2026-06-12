@@ -19,7 +19,7 @@ export default function DashboardPage({
       </section>
 
       <Suspense fallback={<AlertFeedSkeleton />}>
-        <AlertFeed searchParams={searchParams} />
+        <AlertFeed searchParams={searchParams} limit={10} />
       </Suspense>
     </div>
   )

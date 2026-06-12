@@ -66,7 +66,7 @@ export function LandingPage() {
           </Link>
         </header>
 
-        <section className="grid flex-1 items-center gap-6 py-5 sm:gap-8 sm:py-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.78fr)] lg:py-10">
+        <section className="grid flex-1 items-center gap-6 py-5 sm:gap-8 sm:py-8 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:py-10">
           <div className="max-w-4xl">
             <p className="font-data text-territory mb-4 text-xs uppercase tracking-[0.18em]">
               Illegal fishing response - multi-agency command
@@ -86,23 +86,17 @@ export function LandingPage() {
               >
                 Masuk ke Dashboard
               </Link>
-              <a
-                href="#kapabilitas"
-                className="border-mist bg-trench/70 text-foam hover:border-signal/60 inline-flex h-11 items-center justify-center rounded-sm border px-5 text-sm font-medium transition-colors"
-              >
-                Lihat Kapabilitas
-              </a>
             </div>
           </div>
 
-          <div className="border-fog bg-abyss/72 shadow-signal/10 hidden overflow-hidden rounded-sm border shadow-2xl lg:block">
+          <div className="border-fog bg-abyss/72 shadow-signal/10 hidden max-w-[440px] justify-self-end overflow-hidden rounded-sm border shadow-2xl lg:block">
             <Image
-              src="/landing/dashboard-preview.png"
-              alt="Preview dashboard command center SIREN"
-              width={1120}
-              height={720}
-              sizes="(min-width: 1024px) 42vw, 100vw"
-              className="aspect-[16/10] w-full object-cover"
+              src="/landing/hero-illustration.png"
+              alt="Ilustrasi peta maritim Indonesia SIREN"
+              width={1254}
+              height={1254}
+              sizes="(min-width: 1024px) 440px, 100vw"
+              className="aspect-square w-full object-cover"
               priority
             />
           </div>

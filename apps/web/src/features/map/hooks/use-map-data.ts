@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import type { MapTimeRange } from "@siren/shared/constants"
 import type { SelectedVessel, TrackFeature, VesselCollection } from "../map-types"
 
+/** Interval polling posisi kapal — posisi baru (mis. dari konsol uji) tampil tanpa reload */
+const VESSEL_POLL_MS = 60_000
+
 /** Posisi terakhir per vessel sesuai rentang waktu (P3.1.1) */
 export function useVesselPositions(range: MapTimeRange, scope: "mine" | "all") {
   const [vessels, setVessels] = useState<VesselCollection | null>(null)
@@ -11,14 +14,19 @@ export function useVesselPositions(range: MapTimeRange, scope: "mine" | "all") {
   useEffect(() => {
     let cancelled = false
     const params = new URLSearchParams({ since: range, scope })
-    fetch(`/api/v1/map/vessels?${params}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: VesselCollection | null) => {
-        if (!cancelled && data) setVessels(data)
-      })
-      .catch(() => {})
+    const load = () => {
+      fetch(`/api/v1/map/vessels?${params}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: VesselCollection | null) => {
+          if (!cancelled && data) setVessels(data)
+        })
+        .catch(() => {})
+    }
+    load()
+    const interval = setInterval(load, VESSEL_POLL_MS)
     return () => {
       cancelled = true
+      clearInterval(interval)
     }
   }, [range, scope])
 

@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldCheck,
   Ship,
+  TerminalSquare,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -26,6 +27,7 @@ const operationalItems = [
 
 const utilityItems = [
   { href: "/dashboard/audit", label: "Audit", icon: ShieldCheck, adminOnly: true },
+  { href: "/dashboard/console", label: "Console", icon: TerminalSquare, adminOnly: true },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]
 

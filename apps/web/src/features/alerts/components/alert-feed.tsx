@@ -1,4 +1,5 @@
 import { headers } from "next/headers"
+import Link from "next/link"
 import { RULE_LABELS, type AlertStatus, type RuleType, type Severity } from "@siren/shared/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SeverityChip, StatusBadge } from "@/components/shared"
@@ -32,8 +33,10 @@ const FEED_PARAMS = ["scope", "severity", "ruleType", "status", "since", "wppZon
  */
 export async function AlertFeed({
   searchParams,
+  limit,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
+  limit?: number
 }) {
   const params = await searchParams
   const h = await headers()
@@ -42,6 +45,7 @@ export async function AlertFeed({
     const value = params[key]
     if (typeof value === "string" && value) qs.set(key, value)
   }
+  if (limit) qs.set("limit", String(limit))
 
   const base = process.env.API_BASE_URL ?? "http://localhost:4000"
   const res = await fetch(`${base}/api/v1/alerts?${qs}`, {
@@ -57,7 +61,7 @@ export async function AlertFeed({
   const { alerts } = (await res.json()) as { alerts: FeedAlert[] }
 
   return (
-    <FeedShell scope={scope}>
+    <FeedShell scope={scope} showAllLink>
       {alerts.length === 0 ? (
         <FeedEmpty text="Perairan terpantau tenang — belum ada alert untuk filter ini." />
       ) : (
@@ -93,7 +97,15 @@ export async function AlertFeed({
   )
 }
 
-function FeedShell({ scope, children }: { scope: string; children: React.ReactNode }) {
+function FeedShell({
+  scope,
+  showAllLink = false,
+  children,
+}: {
+  scope: string
+  showAllLink?: boolean
+  children: React.ReactNode
+}) {
   return (
     <aside data-tour="alert-feed" className="border-fog bg-trench rounded-sm border">
       <div className="border-fog flex h-12 items-center justify-between border-b px-4">
@@ -106,6 +118,16 @@ function FeedShell({ scope, children }: { scope: string; children: React.ReactNo
         <FeedFilters />
       </div>
       {children}
+      {showAllLink && (
+        <div className="border-fog flex justify-center border-t p-3">
+          <Link
+            href="/dashboard/alerts"
+            className="font-data text-signal-bright text-xs uppercase hover:underline"
+          >
+            Lihat semua alert →
+          </Link>
+        </div>
+      )}
     </aside>
   )
 }
