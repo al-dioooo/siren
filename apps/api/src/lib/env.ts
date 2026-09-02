@@ -14,3 +14,8 @@ export function requireEnv(name: string): string {
 }
 
 export const PORT = Number(process.env.PORT ?? 4000);
+
+// Default loopback: di VPS API hanya dikonsumsi nginx + Next.js di host yang
+// sama, jadi jangan buka ke publik. Set HOST=0.0.0.0 hanya bila memang perlu
+// (mis. container).
+export const HOST = process.env.HOST ?? '127.0.0.1';

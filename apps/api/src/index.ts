@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { auth } from './lib/auth';
-import { PORT } from './lib/env';
+import { HOST, PORT } from './lib/env';
 import { loginRateLimit } from './lib/ratelimit';
 import { requireAuth } from './middleware/require-auth';
 import { prisma } from './lib/prisma';
@@ -100,8 +100,8 @@ app.route('/', auditRoutes);
 app.route('/', aiRoutes);
 app.route('/', consoleRoutes);
 
-serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`[api] listening on :${info.port}`);
+serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) => {
+  console.log(`[api] listening on ${HOST}:${info.port}`);
 });
 
 export { app };

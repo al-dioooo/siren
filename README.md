@@ -107,6 +107,7 @@ Default seeded logins:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, Storage) |
 | `PASAL_API_TOKEN` | pasal.id personal access token |
 | `PORT` | API port (default `4000`) |
+| `HOST` | Interface the API binds to (default `127.0.0.1`) |
 
 ### `apps/web/.env.local`
 
