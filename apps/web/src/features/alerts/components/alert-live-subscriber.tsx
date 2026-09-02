@@ -4,8 +4,6 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryState, parseAsStringLiteral } from "nuqs"
 import { toast } from "sonner"
-import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js"
-import { getSupabaseBrowser } from "@/lib/supabase-browser"
 import { emitRtAlert, emitRtStatus } from "@/lib/realtime-events"
 
 type AlertRow = {
@@ -17,55 +15,55 @@ type AlertRow = {
   assigned_agency_id: string | null
 }
 
+const STREAM_URL = "/api/v1/alerts/stream"
+
 /**
- * Supabase Realtime: INSERT pada Alert → router.refresh() + toast + event
- * untuk sonar ping di peta (plan 03 P4.2.1). Filter agency saat scope=mine.
+ * SSE dari API (trigger pg_notify pada INSERT Alert) → router.refresh() + toast
+ * + event untuk sonar ping di peta (plan 03 P4.2.1). Filter agency saat
+ * scope=mine. EventSource menangani reconnect sendiri, jadi tidak ada backoff
+ * manual di sini; status LIVE ikut open/error stream.
  */
 export function AlertLiveSubscriber({ agencyId }: { agencyId: string | null }) {
   const router = useRouter()
   const [scope] = useQueryState("scope", parseAsStringLiteral(["mine", "all"]).withDefault("mine"))
 
   useEffect(() => {
-    let cancelled = false
-    let supabase: SupabaseClient | null = null
-    let channel: RealtimeChannel | null = null
+    // Same-origin: cookie session Better Auth ikut otomatis.
+    const source = new EventSource(STREAM_URL)
 
-    void getSupabaseBrowser().then((client) => {
-      if (cancelled) return
-      supabase = client
-      if (!supabase) {
-        console.warn("[realtime] NEXT_PUBLIC_SUPABASE_* kosong — feed hanya update saat refresh")
+    const onReady = () => emitRtStatus({ status: "live" })
+    const onError = () => emitRtStatus({ status: "idle" })
+
+    const onAlert = (event: MessageEvent<string>) => {
+      let alert: AlertRow
+      try {
+        alert = JSON.parse(event.data) as AlertRow
+      } catch {
+        console.warn("[realtime] payload alert tidak valid")
         return
       }
+      // Scope mine → abaikan alert agency lain (filter client-side:
+      // satu stream untuk kedua scope, toggle tanpa resubscribe)
+      if (scope === "mine" && agencyId && alert.assigned_agency_id !== agencyId) {
+        return
+      }
+      emitRtAlert({ id: alert.id, lat: alert.lat, lng: alert.lng, severity: alert.severity })
+      toast("Alert baru masuk", {
+        description: `${alert.rule_type} · ${alert.severity.toUpperCase()}`,
+      })
+      router.refresh()
+    }
 
-      channel = supabase
-        .channel("alert-feed")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "Alert" },
-          (payload) => {
-            const alert = payload.new as AlertRow
-            // Scope mine → abaikan alert agency lain (filter client-side:
-            // satu channel untuk kedua scope, toggle tanpa resubscribe)
-            if (scope === "mine" && agencyId && alert.assigned_agency_id !== agencyId) {
-              return
-            }
-            emitRtAlert({ id: alert.id, lat: alert.lat, lng: alert.lng, severity: alert.severity })
-            toast("Alert baru masuk", {
-              description: `${alert.rule_type} · ${alert.severity.toUpperCase()}`,
-            })
-            router.refresh()
-          },
-        )
-        .subscribe((status) => {
-          emitRtStatus({ status: status === "SUBSCRIBED" ? "live" : "idle" })
-        })
-    })
+    source.addEventListener("ready", onReady)
+    source.addEventListener("alert", onAlert)
+    source.addEventListener("error", onError)
 
     return () => {
-      cancelled = true
+      source.removeEventListener("ready", onReady)
+      source.removeEventListener("alert", onAlert)
+      source.removeEventListener("error", onError)
+      source.close()
       emitRtStatus({ status: "idle" })
-      if (supabase && channel) void supabase.removeChannel(channel)
     }
   }, [router, scope, agencyId])
 

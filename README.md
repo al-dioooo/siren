@@ -6,7 +6,7 @@ Maritime domain awareness platform for Indonesian waters. Detects illegal fishin
 
 - **Vessel map** — Mapbox GL map with LOD rendering: heatmap at low zoom, clusters at mid zoom, per-vessel severity symbols at high zoom. Vessel track lines, popovers, and URL-persisted state via nuqs.
 - **Alert engine** — five automated detection rules running on a watermarked time window: zone violation, AIS gap, MPA loitering, suspicious encounter, and behavior mismatch. Results deduplicated and routed to the responsible Indonesian fisheries agency (WPP jurisdiction).
-- **Real-time feed** — live alert feed powered by Supabase Realtime with sonar-ping markers on the map and toast notifications.
+- **Real-time feed** — live alert feed powered by Postgres `LISTEN/NOTIFY` streamed to the browser over SSE (`/api/v1/alerts/stream`), with sonar-ping markers on the map and toast notifications.
 - **AI legal assistant** — streaming RAG chat grounded in Indonesian maritime law (UU 31/2004, UU 45/2009, etc.) via pasal.id citations and pgvector semantic search. Natural-language alert filter parsing.
 - **Alert explanations** — persist-once LLM explanations for each alert, pre-seeded on demand.
 - **Multi-agency auth** — role-based access (operator / admin) scoped to agency (PSDKP, BAKAMLA, KKP, POLRI, TNI AL) via Better Auth.
@@ -17,7 +17,9 @@ Maritime domain awareness platform for Indonesian waters. Detects illegal fishin
 |---|---|
 | Frontend | Next.js 16, React 19, Tailwind CSS v4, Mapbox GL / react-map-gl, ECharts, AI SDK (`useChat`) |
 | API | Hono, Node.js, Better Auth, Prisma ORM, pg-boss |
-| Database | PostgreSQL via Supabase — PostGIS (spatial), pgvector (embeddings) |
+| Database | PostgreSQL 14 — PostGIS (spatial), pgvector (embeddings). Self-hosted on the VPS in production |
+| Realtime | Postgres `LISTEN/NOTIFY` → SSE (`/api/v1/alerts/stream`) |
+| Object storage | Supabase Storage (case attachments only) |
 | AI | Google Gemini (`gemini-2.0-flash` chat, `gemini-embedding-001` 1536-dim vectors) |
 | Data source | Global Fishing Watch API v3 |
 | Law corpus | pasal.id API + local fallback corpus |
@@ -44,7 +46,8 @@ siren/
 
 - Node.js ≥ 20.9
 - pnpm 11.5.1 — `npm install -g pnpm@11.5.1` or `corepack enable && corepack prepare pnpm@11.5.1 --activate`
-- A Supabase project with the `pgvector` and `postgis` extensions enabled
+- PostgreSQL 14+ with the `postgis` and `vector` extensions available
+- A Supabase project — used **only** for Storage (case attachments)
 - A Mapbox account (Education tier works)
 - A Google AI Studio API key (free — [aistudio.google.com](https://aistudio.google.com))
 - A Global Fishing Watch API token — [globalfishingwatch.org/our-apis](https://globalfishingwatch.org/our-apis/)
@@ -93,15 +96,15 @@ Default seeded logins:
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | Supabase pooler URL (port 6543, `?pgbouncer=true`) |
-| `DIRECT_URL` | Supabase direct URL (port 5432, for migrations) |
+| `DATABASE_URL` | Postgres connection URL used at runtime |
+| `DIRECT_URL` | Direct (non-pooler) Postgres URL — used for migrations **and** for the `LISTEN/NOTIFY` alert stream |
 | `BETTER_AUTH_SECRET` | Random secret — `openssl rand -base64 32` |
 | `BETTER_AUTH_URL` | Frontend origin (`http://localhost:3000` in dev) |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key |
 | `MAPBOX_SECRET_TOKEN` | Mapbox secret token (for PDF static images) |
 | `GFW_API_TOKEN` | Global Fishing Watch API v3 token |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
+| `SUPABASE_URL` | Supabase project URL (Storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, Storage) |
 | `PASAL_API_TOKEN` | pasal.id personal access token |
 | `PORT` | API port (default `4000`) |
 
@@ -118,8 +121,6 @@ Default seeded logins:
 | `NEXT_PUBLIC_MAPBOX_EEZ_SOURCE_LAYER` | Source-layer name for the EEZ vector tileset |
 | `NEXT_PUBLIC_MAPBOX_TILESET_MPA` | Mapbox tileset ID for MPA layer |
 | `NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER` | Source-layer name for the MPA vector tileset |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (for Realtime) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (for Realtime) |
 | `API_BASE_URL` | API origin for Next.js rewrites (`http://localhost:4000` in dev) |
 
 #### Mapbox `.env.local` example

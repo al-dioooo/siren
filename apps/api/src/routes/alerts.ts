@@ -2,7 +2,9 @@
 // Module 1.1). Route tipis — parse, authorize, delegasi ke alert.service.
 // scope=mine (default) → hanya alert agency user; scope=all → semua agency.
 import { Hono, type Context } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import { dispatchAlertSchema, escalateAlertSchema, falsePositiveSchema } from '@siren/shared';
+import { subscribeAlertInsert } from '../lib/alert-notify';
 import { requireAuth } from '../middleware/require-auth';
 import {
   dispatchAlert,
@@ -19,6 +21,43 @@ export const alertRoutes = new Hono<AppEnv>();
 function actorFrom(c: Context<AppEnv>): AlertActor {
   return { userId: c.get('userId'), role: c.get('role'), agencyId: c.get('agencyId') };
 }
+
+// Feed realtime: SSE dari trigger pg_notify pada INSERT Alert.
+// Semua alert dikirim apa adanya; filter scope=mine tetap di client supaya
+// toggle scope tidak perlu resubscribe (kontrak lama Supabase Realtime).
+const SSE_HEARTBEAT_MS = 25_000;
+
+alertRoutes.get('/api/v1/alerts/stream', requireAuth, (c) => {
+  c.header('Cache-Control', 'no-cache, no-transform');
+  c.header('Connection', 'keep-alive');
+  // Matikan buffering nginx supaya event sampai seketika.
+  c.header('X-Accel-Buffering', 'no');
+
+  return streamSSE(c, async (stream) => {
+    let release = () => {};
+    const closed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const unsubscribe = subscribeAlertInsert((payload) => {
+      void stream.writeSSE({ event: 'alert', data: JSON.stringify(payload) }).catch(release);
+    });
+
+    const heartbeat = setInterval(() => {
+      void stream.writeSSE({ event: 'ping', data: String(Date.now()) }).catch(release);
+    }, SSE_HEARTBEAT_MS);
+
+    stream.onAbort(release);
+
+    try {
+      await stream.writeSSE({ event: 'ready', data: '1' });
+      await closed;
+    } finally {
+      clearInterval(heartbeat);
+      unsubscribe();
+    }
+  });
+});
 
 alertRoutes.get('/api/v1/alerts', requireAuth, async (c) => {
   const scope = c.req.query('scope') === 'all' ? 'all' : 'mine';
