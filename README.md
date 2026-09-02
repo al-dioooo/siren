@@ -144,6 +144,54 @@ NEXT_PUBLIC_MAPBOX_MPA_SOURCE_LAYER="ec14c3b8517b261a3255"
 
 Keep `MAPBOX_SECRET_TOKEN` only in `apps/api/.env`; it is used server-side for Static Images in evidence PDFs and must not be exposed through `NEXT_PUBLIC_*`.
 
+## Deployment (VPS)
+
+Production runs on the VPS behind nginx at <https://siren.azuregarden.dedyn.io>.
+
+| Piece | Value |
+|---|---|
+| Repo path | `~/projects/siren` (branch `production`) |
+| Web | `siren-web.service` → `next start` on `127.0.0.1:3220` |
+| API | `siren-api.service` → `tsx src/index.ts` on `127.0.0.1:4220` |
+| Database | local PostgreSQL 14, database `siren` (PostGIS + pgvector) |
+| Geodata | `~/projects/Geodata/` — sibling of the repo, read by `prisma/seed.ts` |
+| nginx vhost | `/etc/nginx/sites-available/siren.azuregarden.dedyn.io` |
+| TLS | Let's Encrypt via certbot `--webroot`, auto-renewed by `certbot.timer` |
+| Logs | `/var/log/siren-web.log`, `/var/log/siren-api.log` |
+
+nginx routes `/api/v1/*` straight to the API and everything else to Next.js, so
+both share one origin and the Next.js `rewrites` in `next.config.ts` are only
+used in development. `/api/v1/alerts/stream` has `proxy_buffering off` — the SSE
+alert feed will appear to hang without it.
+
+Neither service is exposed directly: the API binds `127.0.0.1` (`HOST`), so
+nginx is the only way in.
+
+### Redeploy
+
+```bash
+cd ~/projects/siren
+git pull origin production
+pnpm install --frozen-lockfile
+pnpm --filter api exec prisma migrate deploy   # only when migrations changed
+pnpm --filter web build
+sudo systemctl restart siren-api siren-web
+```
+
+Check it came back up:
+
+```bash
+systemctl is-active siren-api siren-web
+curl -s https://siren.azuregarden.dedyn.io/api/v1/health
+```
+
+### Re-seeding zones
+
+`prisma/seed.ts` falls back to crude bounding boxes when the GeoJSON files are
+missing, and logs a warning saying so. Keep `WPPNRI_250K_5percent.json` and
+`ZonasiKawasanKonservasi_5percent.json` in `~/projects/Geodata/`; the seed is
+idempotent, so re-running it after adding them replaces the fallback shapes.
+
 ## Scripts
 
 ```bash
